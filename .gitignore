@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+
+# Machine-local Claude Code permission overrides
+.claude/settings.local.json
+
+# Isolated ledgers and sample files from UX reviews, thrown away after each run
+.ux-test/
+
+# Scratch scripts and intermediate files
+tmp/

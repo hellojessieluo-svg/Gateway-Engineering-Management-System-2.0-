@@ -1,0 +1,2432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gateway</title>
+<style>
+  :root{
+    --bg:#f0f2f5; --card:#fff; --line:#e5e7eb; --line2:#d1d5db;
+    --ink:#111827; --ink2:#374151; --mute:#6b7280;
+    --brand:#1a7ae0; --brand-d:#1462b6; --brand-bg:#eaf3fd;
+    --nav:#26303f; --nav-d:#1e2733; --nav-hi:#334054; --nav-ink:#c2cbd8; --nav-mute:#6d7c92;
+    --green:#16a34a; --green-d:#15803d;
+    --amber:#b45309; --red:#dc2626;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink2);
+       font:13px/1.5 "Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif}
+
+  /* ================= Shell: left nav + top bar + content ================= */
+  .app{display:flex;min-height:100vh}
+  .ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;
+      stroke-linecap:round;stroke-linejoin:round}
+
+  .side{width:206px;flex:none;background:var(--nav);position:sticky;top:0;height:100vh;
+        display:flex;flex-direction:column;transition:width .12s}
+  .brand{height:48px;flex:none;display:flex;align-items:center;gap:9px;padding:0 14px;
+         background:var(--nav-d);color:#fff;font-weight:700;font-size:14px;
+         white-space:nowrap;overflow:hidden}
+  .brand .mark{width:24px;height:24px;flex:none;border-radius:5px;background:var(--brand);
+               color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center}
+  .menu{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 0 12px}
+  .menu .grp{padding:12px 15px 5px;font-size:11px;color:var(--nav-mute);letter-spacing:.08em}
+  .menu a{display:flex;align-items:center;gap:10px;padding:8px 15px;color:var(--nav-ink);
+          cursor:pointer;border-left:3px solid transparent;white-space:nowrap;overflow:hidden}
+  .menu a:hover{background:var(--nav-hi);color:#fff}
+  .menu a.on{background:var(--nav-hi);color:#fff;border-left-color:var(--brand)}
+  .menu .badge{margin-left:auto;background:var(--red);color:#fff;border-radius:9px;
+               padding:0 6px;font-size:11px;line-height:16px;min-width:18px;text-align:center}
+  .menu .badge:empty{display:none}
+  /* Collapsed, only icons remain: group headings shrink to a divider so the menu doesn't turn into a blur */
+  .app.narrow .side{width:54px}
+  .app.narrow .menu .txt,.app.narrow .menu .badge,.app.narrow .brand .txt{display:none}
+  .app.narrow .menu a{justify-content:center;padding:9px 0;border-left-width:0}
+  .app.narrow .menu a.on{box-shadow:inset 3px 0 0 var(--brand)}
+  .app.narrow .menu .grp{height:1px;padding:0;margin:7px 12px;background:#38455a;
+                         overflow:hidden;text-indent:-999px}
+  .app.narrow .brand{justify-content:center;padding:0}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .top{height:48px;flex:none;background:var(--card);border-bottom:1px solid var(--line);
+       display:flex;align-items:center;gap:10px;padding:0 14px;position:sticky;top:0;z-index:5}
+  .icobtn{border:0;background:transparent;padding:5px 6px;color:var(--mute);border-radius:6px}
+  .icobtn:hover{background:var(--bg);color:var(--ink)}
+  .crumb{color:var(--mute);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .crumb b{color:var(--ink);font-weight:700;font-size:14.5px}
+  .crumb .sep{margin:0 6px;color:var(--line2)}
+  .top .summary{color:var(--mute);font-size:12px;white-space:nowrap}
+  .content{padding:16px 20px 14px;max-width:1480px;width:100%}
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .panel[hidden]{display:none}
+  /* Panel header: which gate this form belongs to, written on its own head */
+  .ptitle{display:flex;flex-wrap:wrap;row-gap:6px;align-items:center;gap:8px;margin:-16px -16px 14px;padding:10px 16px;
+          border-bottom:1px solid var(--line);background:#fafbfc;border-radius:10px 10px 0 0;
+          font-weight:700;color:var(--ink);font-size:13.5px}
+  .ptitle .no{color:var(--brand)}
+  .ptitle .hint{font-weight:400}
+  /* Once the title bar got more filters (2026-09-21 the ledger gained "Stage"), in a narrow window
+     the title got squeezed into a column and the buttons on the right poked out of the panel.
+     Two fixes together: the title and hint never wrap, the header as a whole may wrap --
+     if it doesn't fit, the filters and buttons drop to a second line; no squeezed title, no horizontal scrollbar. */
+  .ptitle>.tt,.ptitle>.hint{white-space:nowrap;flex:none}
+
+  /* ================= Dashboard ================= */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:10px;margin-bottom:10px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 14px;
+       display:flex;align-items:center;gap:12px}
+  .kpi .n{font-size:25px;font-weight:700;color:var(--ink);line-height:1.15}
+  .kpi .t{font-size:12px;color:var(--mute)}
+  .kpi .ic{width:20px;height:20px;color:var(--brand);margin-left:auto;opacity:.65}
+  .kpi.link{cursor:pointer}
+  .kpi.link:hover{border-color:var(--brand);box-shadow:0 1px 6px rgba(26,122,224,.14)}
+  table.kv{font-size:12.5px}
+  table.kv th{position:static;width:66px;background:transparent;border:0;padding:4px 0;
+              color:var(--mute);font-weight:400;vertical-align:top}
+  table.kv td{border:0;padding:4px 0 4px 8px;word-break:break-all}
+  .open{color:var(--brand);cursor:pointer}
+  .open:hover{text-decoration:underline}
+
+  /* Forms (small forms in dialogs): one field per row */
+  .row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+  .row > label{width:76px;flex:none;color:var(--ink2);white-space:nowrap}
+  .row > label.ck{width:auto}
+  .row .lbl{flex:none;color:var(--ink2);white-space:nowrap}
+  /* The two gates' forms are an OA-style grid form (2026-09-08): grey label cells, white value cells,
+     two pairs per row (label | value | label | value), sections as a title band. The lines are the
+     grid's gaps: the background is the line colour with 1px between cells. The detail pages use the
+     same layout (.frm.view) -- when logging, the cells hold controls; in the detail, they hold values,
+     so the detail looks exactly like the form. */
+  .frm{display:grid;grid-template-columns:118px minmax(0,1fr) 104px minmax(0,1fr);
+       gap:1px;background:var(--line2);border:1px solid var(--line2);border-radius:6px;
+       overflow:hidden;margin-bottom:12px}
+  .frm > *{background:#fff;min-height:38px;display:flex;align-items:center;gap:8px;
+           padding:5px 10px;min-width:0}
+  .frm > .k{background:#f5f7fa;color:var(--ink2);white-space:nowrap;font-size:12.5px}
+  .frm > .k.top{align-items:flex-start;padding-top:10px}
+  .frm > .sec{grid-column:1 / -1;background:#eef3f9;color:var(--ink);font-weight:700;
+              min-height:30px;padding:4px 10px;font-size:12.5px}
+  .frm > .sec .hint{font-weight:400;margin-left:8px}
+  .frm .span{grid-column:2 / -1}
+  .frm > .v > input[type=text],.frm > .v > select,.frm > .v > .picklist{flex:1;min-width:0}
+  .frm > .v > .w110,.frm > .v > .w150{flex:none}
+  .frm > .v.addr{line-height:1.4;word-break:break-all}
+  .frm.view > .v{display:block;padding:8px 10px;color:var(--ink2);line-height:1.5;word-break:break-all}
+  .frm.view > .k{min-height:34px}
+  .frm.view a{color:var(--brand)}
+  .hb{display:flex;align-items:center;gap:8px;min-width:0}
+  .hb > input[type=text],.hb > select{flex:1;min-width:0}
+  .hb > .w110,.hb > .w150{flex:none}
+  .hb > .lbl{color:var(--ink2);white-space:nowrap}
+  /* OA-style workflow page (2026-09-08, modelled on a workflow form page):
+     top bar "Ledger · intake - subject - status" + tabs (form / history / related) + buttons on the right;
+     form tab = centred big title + grid form + detail table; history = one entry per step with an avatar, like sign-off comments. */
+  .flow-head{display:flex;align-items:center;gap:14px;margin:-16px -16px 0;padding:6px 16px 0;
+             border-bottom:1px solid var(--line);background:#fafbfc;border-radius:10px 10px 0 0}
+  .flow-head .ttl{font-size:13px;color:var(--ink2);white-space:nowrap;overflow:hidden;
+                  text-overflow:ellipsis;padding-bottom:6px;min-width:0}
+  .flow-head .ttl b{color:var(--ink)}
+  .flow-head .tabs{display:flex;gap:2px;margin-left:6px;flex:none}
+  .flow-head .tabs a{padding:8px 12px;cursor:pointer;color:var(--ink2);font-size:13px;
+                     border-bottom:2px solid transparent;white-space:nowrap;margin-bottom:-1px}
+  .flow-head .tabs a:hover{color:var(--brand)}
+  .flow-head .tabs a.on{color:var(--brand);border-bottom-color:var(--brand);font-weight:700}
+  .flow-head .acts{margin-left:auto;display:flex;gap:6px;padding-bottom:6px;flex:none}
+  .ftitle{text-align:center;font-size:17px;font-weight:700;color:var(--ink);margin:16px 0 14px;letter-spacing:.04em}
+  .dt{margin:16px 0 6px;font-weight:700;color:var(--ink);font-size:13px}
+  .dt .hint{font-weight:400;margin-left:8px}
+  th.no,td.no{width:44px;text-align:center;color:var(--mute)}
+  /* The two gates' button bars sit at the bottom of the panel (moved down 2026-09-11): form -> file table -> buttons; filing/issuing is the last step */
+  .bar.foot{margin:12px 0 0;padding:12px 0 2px;border-top:1px dashed var(--line)}
+  .bar.foot{flex-wrap:nowrap}
+  .bar.foot > button{flex:none;white-space:nowrap}
+  .bar.foot .miss{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bar.foot .undo{flex:0 1 auto;min-width:0;max-width:420px;overflow:hidden;text-overflow:ellipsis;margin-left:0}
+  .tabpane[hidden]{display:none}
+  .ops{list-style:none;margin:6px 0 0;padding:0}
+  .ops li{display:flex;gap:12px;padding:12px 6px;border-bottom:1px solid var(--line)}
+  .ops li:last-child{border-bottom:0}
+  .ops .av{width:36px;height:36px;border-radius:50%;background:var(--brand);color:#fff;flex:none;
+           display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+  .ops .av.out{background:#0a9f5c}
+  .ops .av.bad{background:var(--red)}
+  .ops .av.me{background:#5b6b82}
+  .ops .who{font-weight:700;color:var(--ink)}
+  .ops .when{color:var(--mute);font-size:12px;margin-left:8px}
+  .ops .what{color:var(--ink2);margin-top:3px;line-height:1.6;word-break:break-all}
+  .ops .what a{color:var(--brand)}
+  label[for]{cursor:pointer}
+  input[type=text],input[type=date],select,textarea{
+    font:inherit;color:var(--ink2);background:#fff;border:1px solid var(--line2);
+    border-radius:7px;padding:5px 8px;min-width:0}
+  input[type=text]:focus,input[type=date]:focus,select:focus,textarea:focus{
+    outline:0;border-color:var(--brand);box-shadow:0 0 0 2px var(--brand-bg)}
+  .grow{flex:1}
+  .w90{width:90px;flex:none}
+  .w110{width:110px;flex:none}
+  .w150{width:150px;flex:none}
+  .w280{width:280px;flex:none}
+  .hint{color:var(--mute);font-size:12px}
+  .sect{font-weight:700;font-size:13px;color:var(--ink);margin:14px 0 6px}
+  .sect .hint{font-weight:400;margin-left:8px}
+  button{font:inherit;background:#fff;color:var(--ink2);border:1px solid var(--line2);
+         border-radius:7px;padding:6px 14px;cursor:pointer}
+  button:hover{background:var(--bg)}
+  button.go{background:var(--brand);color:#fff;border-color:var(--brand);
+            font-weight:700;padding:8px 20px}
+  button.go:hover{background:var(--brand-d)}
+  button.sm{padding:3px 10px;font-size:12px}
+  button.sm:disabled{color:var(--mute);border-color:var(--line);background:var(--bg);cursor:default}
+  button.undo{margin-left:auto;color:var(--amber);border-color:#fcd34d;background:#fffbeb}
+  button.undo:hover:not(:disabled){background:#fef3c7}
+  button.undo:disabled{color:var(--mute);border-color:var(--line);background:var(--bg);cursor:default}
+  button.go:disabled{background:var(--line2);border-color:var(--line2);color:#fff;cursor:not-allowed}
+  /* Delete is the only button that really makes things disappear; its colour must set it apart from "Refresh" and friends */
+  button.del{margin-left:10px;color:var(--red);border-color:#fecaca;background:#fef2f2;font-weight:400}
+  button.del:hover:not(:disabled){background:#fee2e2}
+  button.del:disabled{color:var(--mute);border-color:var(--line);background:var(--bg);cursor:default}
+
+  /* Required, missing, errors: whatever can be said before the button is clicked is not left for a popup afterwards */
+  .req::after{content:" *";color:var(--red);font-weight:700}
+  input.bad,select.bad{border-color:var(--red);background:#fef2f2}
+  .miss{color:var(--amber);font-size:12px;cursor:pointer;user-select:none}
+  .warn{color:var(--amber)}
+  .miss:hover{text-decoration:underline}
+  .card{border-radius:7px;padding:8px 11px;margin:8px 0;font-size:12px;
+        display:flex;align-items:flex-start;gap:10px}
+  .card[hidden]{display:none}
+  .card.bad{background:#fef2f2;border:1px solid #fecaca;color:var(--red)}
+  .card.ok{background:#f0fdf4;border:1px solid #bbf7d0;color:var(--green-d);align-items:center}
+  .card .grow{white-space:pre-wrap;word-break:break-all}
+  .bar{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .bar .undo{flex:none}
+  label.ck{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+
+  /* Tables */
+  .tw{border:1px solid var(--line);border-radius:7px;overflow:auto;max-height:260px}
+  table{border-collapse:collapse;width:100%;font-size:12.5px}
+  th{position:sticky;top:0;background:#f9fafb;text-align:left;font-weight:700;
+     padding:7px 9px;border-bottom:1px solid var(--line);color:var(--ink);white-space:nowrap}
+  td{padding:6px 9px;border-bottom:1px solid #f1f3f5;vertical-align:middle}
+  td.nw{white-space:nowrap}
+  /* Date columns don't wrap: third column in the merged ledger (checkbox and number come first), second on the dashboard */
+  #v-rec td:nth-child(3),#v-home td:nth-child(2){white-space:nowrap}
+  /* Merged ledger: columns take the widths written in the header, the rest goes to "Content" so long file names can't squeeze it out */
+  #v-rec table{table-layout:fixed}
+  #v-rec td{overflow-wrap:anywhere}
+  /* The intake/issue cell: direction visible at a glance */
+  .dir{display:inline-block;padding:1px 7px;border-radius:3px;font-size:11.5px;font-weight:700}
+  .dir.in{background:#eef2ff;color:#3730a3}
+  .dir.is{background:#ecfdf5;color:#065f46}
+  /* Second line of the content cell: which files this entry has */
+  .files{color:var(--mute);font-size:11.5px;margin-top:2px}
+  /* Subject/notes in the ledger are links: they open this record's detail page */
+  a.rec{color:var(--brand);text-decoration:none}
+  a.rec:hover{text-decoration:underline}
+  tr:last-child td{border-bottom:0}
+  tbody tr.pick{cursor:pointer}
+  tbody tr.pick:hover{background:#f9fafb}
+  td.num{text-align:right;color:var(--mute);white-space:nowrap}
+  td.path{color:var(--mute);word-break:break-all}
+  .addr{color:var(--ink2);word-break:break-all}
+  .addr .n{color:var(--mute)}
+  .empty{padding:22px;text-align:center;color:var(--mute)}
+  .s-rep{color:var(--green-d);font-weight:700}
+  .s-skip{color:var(--mute)}
+  .s-new{color:var(--amber)}
+  .s-bad{color:var(--red);font-weight:700}
+  td select,td input[type=text]{padding:2px 6px;font-size:12px;width:100%}
+  /* Checkbox column: the whole cell is clickable, no need to hit the 13px box */
+  th.ckcol,td.ckcol{width:32px;padding:0;text-align:center}
+  td.ckcol label{display:block;padding:5px 0;cursor:pointer}
+  tbody tr.on{background:var(--brand-bg)}
+  tbody tr.on:hover{background:#dceafb}
+
+  /* Intake table: the only block left on the dashboard (2026-09-21 system info and the log moved to "Other › System info");
+     height follows the window so short windows still have room for the header and KPI cards */
+  .home-tw{max-height:calc(100vh - 250px);min-height:240px}
+  .log{height:calc(100vh - 330px);min-height:200px;overflow:auto;background:#fff;border:1px solid var(--line);
+       border-radius:7px;padding:6px 9px;color:var(--mute);font-size:12px;white-space:pre-wrap}
+  .busy{position:fixed;inset:0;background:rgba(255,255,255,.62);display:none;
+        align-items:center;justify-content:center;font-size:15px;color:var(--ink);z-index:20}
+  /* Modal dialogs: side forms like "New project" -- they don't disturb the main form, and cancelling leaves no trace */
+  .modal{position:fixed;inset:0;background:rgba(31,41,51,.38);display:none;
+         align-items:center;justify-content:center;z-index:15}
+  .modal.on{display:flex}
+  .dlg{background:var(--card);border:1px solid var(--line);border-radius:10px;
+       width:520px;max-width:92vw;padding:14px;box-shadow:0 8px 32px rgba(0,0,0,.18)}
+  .dlg .row > label{width:76px}
+  .dlg.wide{width:760px}
+  /* Notes text box: monospace, for writing .md */
+  .mdbox{width:100%;height:44vh;min-height:260px;resize:vertical;line-height:1.55;
+         font-family:Consolas,"Cascadia Mono",monospace;font-size:13px}
+  /* Replies to intakes is multi-select: a checkbox list for multi, a dropdown only for single-choice fields */
+  .picklist{border:1px solid var(--line2);border-radius:7px;background:#fff;
+            max-height:104px;min-height:32px;overflow:auto;padding:4px 8px}
+  .picklist label{display:block;padding:2px 0;cursor:pointer;color:var(--ink2)}
+  .picklist input{margin-right:6px}
+  .busy.on{display:flex}
+
+  /* Spec text: a small markdown renderer */
+  .md{max-width:960px;line-height:1.7;color:var(--ink2)}
+  .md h1{font-size:19px;margin:6px 0 12px;color:var(--ink)}
+  .md h2{font-size:15.5px;margin:22px 0 8px;color:var(--ink);border-bottom:1px solid var(--line);padding-bottom:4px}
+  .md h3{font-size:14px;margin:16px 0 6px;color:var(--ink)}
+  .md p{margin:6px 0}
+  .md ul,.md ol{margin:6px 0 6px 22px;padding:0}
+  .md li{margin:2px 0}
+  .md code{font-family:Consolas,"Cascadia Mono",monospace;font-size:12px;background:#f3f4f6;
+           padding:1px 4px;border-radius:4px}
+  .md pre{background:#f8fafc;border:1px solid var(--line);border-radius:7px;padding:10px 12px;
+          overflow:auto;font-family:Consolas,"Cascadia Mono",monospace;font-size:12px;line-height:1.5}
+  .md pre code{background:transparent;padding:0}
+  .md table{width:auto;margin:8px 0;font-size:12.5px}
+  .md th,.md td{border:1px solid var(--line);padding:5px 9px;vertical-align:top}
+  .md th{position:static}
+  .md blockquote{margin:8px 0;padding:6px 12px;border-left:3px solid var(--brand);background:var(--brand-bg);color:var(--ink2)}
+  .md a{color:var(--brand)}
+  .tab[hidden]{display:none}
+  .ptitle button.on{background:var(--brand-bg);border-color:var(--brand);color:var(--brand)}
+  td.lv-err{color:var(--red);font-weight:700}
+  td.lv-warn{color:var(--amber)}
+
+  /* Contact candidates: a row of small chips, one click fills the form */
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px}
+  .chips .chip{border:1px solid var(--line2);border-radius:14px;padding:2px 10px;cursor:pointer;
+               background:#fff;color:var(--ink2);font-size:12px}
+  .chips .chip:hover{border-color:var(--brand);color:var(--brand);background:var(--brand-bg)}
+  .chips .chip .k{color:var(--mute);margin-left:4px}
+  tr.grp td{background:#f9fafb;font-weight:700;color:var(--ink)}
+
+  /* Ledger lookup: both tables on one page; the left menu scrolls to and highlights the one clicked */
+
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-home" viewBox="0 0 20 20"><path d="M3 8.5 10 3l7 5.5V16a1 1 0 0 1-1 1h-3.5v-5h-5v5H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-in" viewBox="0 0 20 20"><path d="M3 11.5h4l1 2h4l1-2h4M3 11.5 5.3 4.5h9.4L17 11.5v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-send" viewBox="0 0 20 20"><path d="M17.2 3 2.9 8.4l5.5 2.2L17.2 3zm0 0-6.4 14-2.4-6.4"/></symbol>
+  <symbol id="i-list" viewBox="0 0 20 20"><path d="M4 5.5h12M4 10h12M4 14.5h12"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6v4.2l2.6 1.6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6.6v6.8M6.6 10h6.8"/></symbol>
+  <symbol id="i-power" viewBox="0 0 20 20"><path d="M10 3v7.2M6.1 5.6a6 6 0 1 0 7.8 0"/></symbol>
+  <symbol id="i-rooms" viewBox="0 0 20 20"><path d="M2.5 16.5V9.2L6.8 5.8l4.3 3.4v7.3M11.1 16.5V4h6.4v12.5M2 16.5h16M4.8 12.3h4M13.2 7h2.2M13.2 10.4h2.2"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 20 20"><path d="M3 5.5h14M3 10h14M3 14.5h14"/></symbol>
+</defs></svg>
+
+<div class="app" id="app">
+
+  <!-- ==================== Left nav ==================== -->
+  <aside class="side">
+    <div class="brand"><span class="mark">GW</span><span class="txt" id="brandName">Gateway</span></div>
+    <!-- Collapsed, only icons remain, so every entry carries a title: hover and you know which one it is -->
+    <nav class="menu" id="menu">
+      <div class="grp">Work</div>
+      <a data-nav="home" title="Dashboard"><svg class="ic"><use href="#i-home"/></svg><span class="txt">Dashboard</span></a>
+      <a data-nav="in" title="① Log intake: file what others send me, with a trail"><svg class="ic"><use href="#i-in"/></svg><span class="txt">① Log intake</span><span class="badge" id="badgeTodo"></span></a>
+      <a data-nav="out" title="② Issue files: pick files from the current folder and record the batch"><svg class="ic"><use href="#i-send"/></svg><span class="txt">② Issue files</span></a>
+      <div class="grp">Projects</div>
+      <a data-nav="proj" title="Projects overview: one row per room; create projects and set official IDs here"><svg class="ic"><use href="#i-rooms"/></svg><span class="txt">Projects overview</span></a>
+      <a data-nav="stds" title="Standards index: current standards and guides in the standards library, one per row, click to open"><svg class="ic"><use href="#i-list"/></svg><span class="txt">Standards index</span></a>
+      <div class="grp">Ledger</div>
+      <a data-nav="rec" title="Ledger (intake &amp; issue)"><svg class="ic"><use href="#i-in"/></svg><span class="txt">Ledger</span></a>
+      <a data-nav="contacts" title="Contacts: name, company, title, phone, grouped by company"><svg class="ic"><use href="#i-list"/></svg><span class="txt">Contacts</span></a>
+      <div class="grp">Other</div>
+      <a data-nav="sys" title="System info: ledger and library paths, activity log"><svg class="ic"><use href="#i-list"/></svg><span class="txt">System info</span></a>
+      <a data-nav="quit" title="Quit (stop the local service)"><svg class="ic"><use href="#i-power"/></svg><span class="txt">Quit</span></a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <!-- ==================== Top bar ==================== -->
+    <header class="top">
+      <button class="icobtn" id="btnNarrow" title="Collapse / expand navigation"><svg class="ic"><use href="#i-menu"/></svg></button>
+      <span class="crumb" id="crumb"></span>
+      <span class="grow"></span>
+      <span class="summary" id="summary"></span>
+      <button class="sm" id="btnQuit" style="margin-left:10px">Quit</button>
+    </header>
+
+    <div class="content">
+
+  <!-- ==================== Dashboard ==================== -->
+  <section id="v-home" hidden>
+    <div class="kpis">
+      <div class="kpi link" data-nav="rec">
+        <div><div class="n" id="kTodo">–</div><div class="t">Intakes waiting on me</div></div>
+        <svg class="ic"><use href="#i-clock"/></svg>
+      </div>
+      <div class="kpi link" data-nav="in">
+        <div><div class="n">+</div><div class="t">Log a batch I received</div></div>
+        <svg class="ic"><use href="#i-in"/></svg>
+      </div>
+      <div class="kpi link" data-nav="out">
+        <div><div class="n">+</div><div class="t">Send out a set of work</div></div>
+        <svg class="ic"><use href="#i-send"/></svg>
+      </div>
+    </div>
+    <div class="panel">
+        <div class="ptitle"><span class="tt">Intakes waiting on me</span><span class="hint">Click a subject to open its intake folder; closed automatically once an issue replies to it</span>
+          <span class="grow"></span>
+          <label for="homeProject" class="hint">Project</label>
+          <select id="homeProject" class="w150"><option value="">(All projects)</option></select>
+          <label for="homeStage" class="hint" style="margin-left:8px">Stage</label>
+          <select id="homeStage" class="w110"><option value="">(All stages)</option></select>
+          <button class="sm" id="btnHomeSkipped" hidden></button>
+          <button class="sm" id="btnHomeReload">Refresh</button></div>
+        <div class="tw home-tw">
+          <table>
+            <thead><tr>
+              <th style="width:96px">Received</th><th style="width:150px">Project</th>
+              <th style="width:88px">Stage</th>
+              <th>Source · subject</th><th style="width:56px">Files</th>
+              <th style="width:190px" title="Copy: the full picture of this intake, ready to paste to an AI; No action needed: mark it in the ledger as not needing me, can be undone"></th></tr></thead>
+            <tbody id="homeBody"><tr><td colspan="6" class="empty">No intakes to do</td></tr></tbody>
+          </table>
+        </div>
+    </div>
+  </section>
+
+  <!-- ==================== Projects overview ==================== -->
+  <!-- Everything about the project list lives on this page: one row per room; creating projects and setting official IDs happen here too. -->
+  <section id="v-proj" hidden>
+    <div class="panel">
+      <div class="ptitle">Projects overview
+        <span class="hint">Click a short name to open the project room; click AGENTS.md to open the room's ground rules</span>
+        <span class="grow"></span><span class="hint" id="projCount"></span>
+        <button class="sm" id="btnProjReload">Refresh</button></div>
+      <div class="bar" style="margin:0 0 10px">
+        <button class="sm" id="btnNewProject" title="Register a new project and create its project room">+ New project</button>
+        <span class="hint">No official ID yet? It gets a "TMP-xxx" for now; once assigned, click "Set official ID…" on this page</span>
+      </div>
+      <div class="tw" style="max-height:none">
+        <table>
+          <thead><tr><th style="width:140px">Short name</th><th style="width:112px">ID</th>
+            <th>Project name</th><th style="width:230px">Stages</th><th style="width:64px">To do</th>
+            <th style="width:104px">Guide</th><th style="width:130px">Actions</th></tr></thead>
+          <tbody id="projBody"><tr><td colspan="7" class="empty">No projects in the ledger yet</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== ① Log intake ==================== -->
+  <section id="v-in" hidden>
+    <div class="panel">
+      <div class="ptitle"><span class="no">①</span>Log intake
+        <span class="hint">What others send me: no renaming, no refusing, no versioning; goes into the project room's inbox\</span></div>
+      <!-- OA-style: buttons on the form, a centred big title, fields as a grid form, files as a numbered detail table -->
+      <div class="ftitle">Log intake</div>
+      <!-- Grid form: label cells .k, value cells .v, two pairs per row; the detail page shows values in this same layout -->
+      <div class="frm">
+        <div class="sec">Basic info</div>
+        <label for="inProject" class="k req">Project</label>
+        <div class="v"><select id="inProject"><option value="">(Choose)</option></select></div>
+        <label for="inStage" class="k req">Stage</label>
+        <div class="v hb">
+          <select id="inStage" class="w150"><option value="">(Choose)</option></select>
+          <label class="ck" title="Tick for important items: the ledger marks them to be kept well. Only a mark; files stay where they are"><input type="checkbox" id="archived"> Archive</label>
+        </div>
+
+        <span class="k">Goes to</span>
+        <div class="v span addr"><span class="n" id="inAddr" title=""></span></div>
+
+        <label for="sourceOrg" class="k req">Source</label>
+        <div class="v"><input type="text" id="sourceOrg" list="orgList" placeholder="Who sent it"><datalist id="orgList"></datalist></div>
+        <label for="intakeDate" class="k">Received</label>
+        <div class="v hb">
+          <input type="date" id="intakeDate" class="w150">
+          <label for="channel" class="lbl">Channel</label>
+          <select id="channel" class="w110"></select>
+        </div>
+
+        <label for="subject" class="k req">Subject</label>
+        <div class="v"><input type="text" id="subject" placeholder="What this batch is about"></div>
+        <!-- Ticked by default: things sent to me usually await a reply; closing them later beats remembering to tick every time -->
+        <span class="k">Handling</span>
+        <div class="v"><label class="ck"><input type="checkbox" id="todo" checked> Needs action / reply</label></div>
+
+        <!-- Required, but "not a reply to any issue" is a proper answer too: the point is to think about it, not to force a link -->
+        <label for="replies" class="k req">In reply to</label>
+        <div class="v span"><select id="replies"><option value="">(Choose)</option></select></div>
+      </div>
+
+      <div class="dt">Files received<span class="hint" id="intakeHint"></span></div>
+      <div class="tw" id="intakeList">
+        <table>
+          <thead><tr><th class="no">#</th><th>File name</th><th style="width:90px">Size</th><th style="width:220px">Relative path in batch</th><th>Source</th></tr></thead>
+          <tbody id="intakeBody"><tr><td colspan="5" class="empty">Click "Add files…" or "Add a whole folder…" below</td></tr></tbody>
+        </table>
+      </div>
+      <div class="bar foot">
+        <button class="go" id="btnIntake">File it</button>
+        <span class="miss" id="inMiss"></span>
+        <button id="btnIntakeAdd">Add files…</button>
+        <button id="btnIntakeFolder">Add a whole folder…</button>
+        <button id="btnIntakeClear">Clear</button>
+        <button id="btnOpenIntake">Open last batch folder</button>
+        <button class="undo" id="btnUndoIntake" disabled>↶ Withdraw last intake</button>
+      </div>
+      <div class="card bad" id="inErr" hidden><span class="grow"></span><button class="sm" data-close>Got it</button></div>
+    </div>
+  </section>
+
+  <!-- ==================== ② Issue files ==================== -->
+  <section id="v-out" hidden>
+    <div class="panel">
+      <div class="ptitle"><span class="no">②</span>Issue files
+        <span class="hint">One ledger entry per issue: files go out under their own names (the program never renames); versions are your call</span></div>
+      <div class="ftitle">Issue files</div>
+      <div class="frm">
+        <div class="sec">Basic info</div>
+        <label for="project" class="k req">Project</label>
+        <div class="v"><select id="project"><option value="">(Choose)</option></select></div>
+        <label for="stage" class="k req">Stage</label>
+        <div class="v hb">
+          <select id="stage" class="w150"><option value="">(Choose)</option></select>
+          <label class="ck" title="Tick for important items: the ledger marks them to be kept well. Only a mark; files stay where they are"><input type="checkbox" id="issueArchived"> Archive</label>
+        </div>
+
+        <span class="k">Current folder</span>
+        <div class="v span addr"><span class="open" id="poolPath"></span><span class="n" id="poolNote"></span></div>
+
+        <label class="k req top">Replies to</label>
+        <div class="v span"><div id="issueIntakes" class="picklist"><span class="hint">(Choose a project first)</span></div></div>
+
+        <label for="recipient" class="k req">Recipient</label>
+        <div class="v"><input type="text" id="recipient" list="recipientList"><datalist id="recipientList"></datalist></div>
+        <label for="issueDate" class="k">Issue date</label>
+        <div class="v hb">
+          <input type="date" id="issueDate" class="w150">
+          <label for="issueChannel" class="lbl">Channel</label>
+          <select id="issueChannel" class="w110"></select>
+        </div>
+
+        <label for="issueSubject" class="k req">Subject</label>
+        <div class="v span"><input type="text" id="issueSubject"
+               placeholder="What this batch is about -- it goes into the outbox folder name: date-recipient-subject"></div>
+
+        <label for="selfcheck" class="k req">Change notes</label>
+        <div class="v span hb">
+          <input type="text" id="selfcheck" readonly placeholder="One .md: what changed and how you checked it">
+          <button id="btnSelfcheckWrite">Write…</button>
+          <button id="btnSelfcheck">Pick .md…</button>
+          <button id="btnSelfcheckClear">Clear</button>
+        </div>
+
+        <!-- Re-ticked for every issue: it's the switch for that last look before sending, not a setting, so saveState doesn't keep it -->
+        <span class="k">Before sending</span>
+        <div class="v span"><label class="ck req" title="Opened each one before sending: are these the right files, is any version wrong"><input type="checkbox" id="eyeballed"> <b>I have looked at the files myself</b></label></div>
+      </div>
+
+      <div class="dt">Files to issue<span class="hint">Picked from the current folder by default · files go out under their own names, the program never renames · tick "Kept" = stored with this batch but not sent (calculation workbooks and the like); only a ledger mark</span></div>
+      <div class="tw" id="issueDrop" style="max-height:250px">
+        <table>
+          <thead><tr><th class="no">#</th><th>File (goes out under this name)</th><th style="width:90px">Kept</th><th style="width:110px"></th></tr></thead>
+          <tbody id="issueBody"><tr><td colspan="4" class="empty">Click "Pick from current folder…" below</td></tr></tbody>
+        </table>
+      </div>
+      <div class="bar foot">
+        <button class="go" id="btnIssue">Issue</button>
+        <span class="miss" id="outMiss"></span>
+        <button id="btnIssueAdd">Pick from current folder…</button>
+        <button id="btnIssueClear">Clear</button>
+        <button id="btnOpenIssue">Open last outbox folder</button>
+        <button class="undo" id="btnUndoIssue" disabled>↶ Withdraw last issue</button>
+      </div>
+      <div class="card bad" id="outErr" hidden><span class="grow"></span><button class="sm" data-close>Got it</button></div>
+    </div>
+  </section>
+
+  <!-- ==================== Ledger: intake and issue on one page ==================== -->
+  <!-- Split into two pages on 2026-09-08; decided 2026-09-21: the front end gets a single running table --
+       time, content, intake/issue, stage, source, status. The back end records things as before (two tables,
+       two sets of commands); this page only merges both sides' rows and sorts them by time. Details stay on
+       their own detail pages: "Content" is a link that opens the file list, folder links and the back story. -->
+  <section id="v-rec" hidden>
+    <div class="panel">
+      <div class="ptitle"><span class="tt">Ledger</span>
+        <span class="hint" id="recHint"></span>
+        <span class="grow"></span>
+        <label for="recProject" class="hint">Project</label>
+        <select id="recProject" class="w280"><option value="">(All projects)</option></select>
+        <label for="recStage" class="hint" style="margin-left:8px">Stage</label>
+        <select id="recStage" class="w110"><option value="">(All stages)</option></select>
+        <label for="recDir" class="hint" style="margin-left:8px">Direction</label>
+        <select id="recDir" class="w110">
+          <option value="">(All)</option><option value="in">Intake only</option><option value="is">Issue only</option>
+        </select>
+        <label for="recKw" class="hint" style="margin-left:8px">Keyword</label>
+        <input type="text" id="recKw" class="w150" placeholder="Subject / file name / source">
+        <button class="sm" id="btnRecReload" style="margin-left:6px">Refresh</button>
+        <button class="sm del" id="btnRecDel" disabled>Delete selected</button>
+      </div>
+      <div class="hint" style="margin:-4px 0 8px">Click "Content" to open the entry's detail page: file list, folder, back story, delivery history.
+        One issue is one entry; a batch partly withdrawn shows "partly withdrawn"; withdrawn entries are red -- the ledger keeps the fact "sent, then withdrawn".
+        For typos made while logging, tick the box on the left and delete: files first move into the project room's "_withdrawn", and the ledger keeps no trace.</div>
+      <div class="tw" style="max-height:72vh">
+        <table>
+          <thead><tr><th class="ckcol"><input type="checkbox" id="ckAllRec" title="Select all in this table"></th>
+            <th class="no">#</th><th style="width:100px">Date</th><th>Content</th>
+            <th style="width:74px">In/out</th><th style="width:88px">Stage</th>
+            <th style="width:150px">Source</th>
+            <th style="width:96px">Handling</th>
+            <th style="width:100px">Status</th></tr></thead>
+          <tbody id="recBody"><tr><td colspan="9" class="empty">No intakes or issues yet</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Detail pages: the full picture of one intake / one issue batch. URL #intake/<id> or #issue/<id>,
+       so they open in a new tab and can be copied to someone else. The body is rendered by JS from the ledger. -->
+  <section id="v-det-in" hidden><div class="panel" id="detIn"></div></section>
+  <section id="v-det-is" hidden><div class="panel" id="detIs"></div></section>
+
+  <!-- ==================== Spec & health check ==================== -->
+  <!-- The "Charter" tab shows the one library spec read-only (config.spec_path, lives in the library's _admin\); to change it, click "Open file" and edit the text there;
+       the health check is the executable version of section 9 of the spec. -->
+  <section id="v-spec" hidden>
+    <div class="panel">
+      <div class="ptitle">Spec &amp; health check
+        <span class="hint" id="specHint"></span>
+        <span class="grow"></span>
+        <button class="sm" data-tab="check">Health check</button>
+        <button class="sm" data-tab="charter">Charter</button>
+        <button class="sm" data-tab="guides">Project guides</button>
+        <button class="sm" data-tab="templates">Templates</button>
+      </div>
+
+      <div class="tab" data-tab="check">
+        <div class="bar" style="margin:0 0 10px">
+          <button class="sm" id="btnCheckRun">Run again</button>
+          <button class="sm" id="btnCheckExport" title="Run the health check again, write every finding to a markdown file in _admin\health-checks\ and open it; with &quot;Errors only&quot; ticked, only errors are exported">Export</button>
+          <span class="hint" id="checkSummary">Not run yet</span>
+          <span class="grow"></span>
+          <label class="ck"><input type="checkbox" id="checkErrOnly"> Errors only</label>
+        </div>
+        <div class="tw" style="max-height:calc(100vh - 260px)">
+          <table>
+            <thead><tr><th style="width:64px">Level</th><th style="width:120px">Room</th>
+              <th>Where (click to open)</th><th style="width:200px">Problem</th><th style="width:300px">What to do</th></tr></thead>
+            <tbody id="checkBody"><tr><td colspan="5" class="empty">Click "Run again"</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tab" data-tab="charter" hidden>
+        <div class="bar" style="margin:0 0 10px">
+          <button class="sm" id="btnCharterOpen">Open file</button>
+          <span class="hint" id="charterNote"></span></div>
+        <div class="md" id="charterBody"></div>
+      </div>
+
+      <div class="tab" data-tab="guides" hidden>
+        <div class="bar" style="margin:0 0 10px">
+          <label for="guidePick" class="hint">Room</label>
+          <select id="guidePick" class="w280"></select>
+          <button class="sm" id="btnGuideOpen">Open file</button>
+          <span class="hint" id="guideNote"></span></div>
+        <div class="md" id="guideBody"></div>
+      </div>
+
+      <!-- Templates all live in _admin\templates\: what project/stage guides look like, plus a change-notes skeleton
+           (the task card copied from the dashboard and "Write…" on the issue page both start from it). Edit and save right here. -->
+      <div class="tab" data-tab="templates" hidden>
+        <div class="bar" style="margin:0 0 10px">
+          <select id="tplPick" class="w280"></select>
+          <button class="sm" id="btnTplEdit">Edit</button>
+          <button class="sm go" id="btnTplSave" hidden>Save</button>
+          <button class="sm" id="btnTplCancel" hidden>Cancel</button>
+          <button class="sm" id="btnTplOpen">Open file</button>
+          <span class="hint" id="tplNote"></span></div>
+        <div class="md" id="tplBody"></div>
+        <textarea id="tplText" class="mdbox" hidden></textarea>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== Contacts ==================== -->
+  <!-- Name, company, title (optional), phone. Not typed in from scratch -- names seen in the ledger but not yet registered are listed as candidates; one click fills the form. -->
+  <section id="v-contacts" hidden>
+    <div class="panel">
+      <div class="ptitle">Contacts
+        <span class="hint">Grouped by company; the intake "Source" and issue "Recipient" dropdowns draw from here</span>
+        <span class="grow"></span><span class="hint" id="ctCount"></span>
+        <button class="sm" id="btnCtReload">Refresh</button></div>
+      <div class="row">
+        <label for="ctName" class="req">Name</label>
+        <input type="text" id="ctName" class="w150">
+        <label for="ctOrg" class="lbl">Company</label>
+        <input type="text" id="ctOrg" class="w280" list="ctOrgList" placeholder="Full name or the usual short form">
+        <datalist id="ctOrgList"></datalist>
+        <label for="ctTitle" class="lbl">Title</label>
+        <input type="text" id="ctTitle" class="w110" placeholder="Optional">
+        <label for="ctPhone" class="lbl">Phone</label>
+        <input type="text" id="ctPhone" class="w150">
+        <button class="go sm" id="btnCtSave">Save</button>
+        <button class="sm" id="btnCtClear">Clear</button>
+        <span class="hint" id="ctMode"></span>
+      </div>
+      <div class="card bad" id="ctErr" hidden><span class="grow"></span><button class="sm" data-close>Got it</button></div>
+      <div class="sect">Registered</div>
+      <div class="tw" style="max-height:none">
+        <table>
+          <thead><tr><th style="width:160px">Name</th><th style="width:140px">Title</th>
+            <th style="width:180px">Phone</th><th>Last changed</th><th style="width:110px">Actions</th></tr></thead>
+          <tbody id="ctBody"><tr><td colspan="5" class="empty">No contacts yet</td></tr></tbody>
+        </table>
+      </div>
+      <div class="sect">Seen in the ledger, not registered<span class="hint">Names that appeared as intake sources or issue recipients. Click one to fill the form above; add a company and phone and it's an entry</span></div>
+      <div class="chips" id="ctCands"><span class="hint">(None)</span></div>
+    </div>
+  </section>
+
+  <!-- ==================== Standards index ==================== -->
+  <!-- Disk is the source of truth: whatever is in the standards library's originals\ and guides\ is listed; status, scope and notes are filled in by hand and stored in the ledger's standards table. -->
+  <section id="v-stds" hidden>
+    <div class="panel">
+      <div class="ptitle">Standards index
+        <span class="hint">Cross-project reference <a class="path" id="stdsRoot" title="Open _reference"></a>; lists what's on disk, status / scope / notes filled in by hand</span>
+        <span class="grow"></span><span class="hint" id="stdsCount"></span>
+        <button class="sm" id="btnStdsReload">Refresh</button></div>
+      <div class="row">
+        <input type="text" id="stdsFilter" class="w280" placeholder="Filter: code / title / scope / notes">
+        <select id="stdsCat"><option value="">All categories</option></select>
+        <select id="stdsKind"><option value="">All kinds</option></select>
+        <select id="stdsStatus"><option value="">All statuses</option></select>
+      </div>
+      <div class="row" id="stdsEdit" hidden>
+        <span class="hint" id="stdsEditName"></span>
+        <label for="stdsStatusIn" class="lbl">Status</label>
+        <select id="stdsStatusIn"></select>
+        <label for="stdsSup" class="lbl">Superseded by</label>
+        <input type="text" id="stdsSup" class="w150" placeholder="New code, optional">
+        <label for="stdsScope" class="lbl">Scope</label>
+        <input type="text" id="stdsScope" class="w280" placeholder="Which stage, which kind of deliverable uses it">
+        <label for="stdsNotes" class="lbl">Notes</label>
+        <input type="text" id="stdsNotes" class="w280">
+        <button class="go sm" id="btnStdsSave">Save</button>
+        <button class="sm" id="btnStdsCancel">Cancel</button>
+      </div>
+      <div class="card bad" id="stdsErr" hidden><span class="grow"></span><button class="sm" data-close>Got it</button></div>
+      <div class="tw" style="max-height:none">
+        <table>
+          <thead><tr><th style="width:110px">Category</th><th style="width:170px">Code</th><th>Title</th><th style="width:50px">Year</th>
+            <th style="width:84px">Status</th><th style="width:180px">Scope</th><th style="width:180px">Notes</th><th style="width:150px">Original</th></tr></thead>
+          <tbody id="stdsBody"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="sect">Pending<span class="hint">Received into the standards library but not yet checked in; once checked they go into originals\ as <code>XX 123-2014 Title</code>. Listed here only, never moved</span></div>
+      <div class="chips" id="stdsPending"><span class="hint">(None)</span></div>
+    </div>
+  </section>
+
+  <!-- ==================== System info ==================== -->
+  <!-- Moved off the dashboard on 2026-09-21: the ledger/library paths and the activity log are rarely looked at, and taking
+       dashboard space left the intake table only half a screen. Look via "Other › System info". The log element always exists; log() writes to it as before. -->
+  <section id="v-sys" hidden>
+    <div class="panel">
+      <div class="ptitle">System info<span class="hint">Click a path to open the folder</span></div>
+        <table class="kv"><tbody>
+          <tr><th>Ledger</th><td id="sysLedger" class="hint"></td></tr>
+          <tr><th>Library</th><td><span class="open" id="sysRoot"></span></td></tr>
+        </tbody></table>
+        <div class="hint" style="margin-top:8px">
+          One room per project, split by stage inside: <b>stage\inbox\</b> (evidence received) ·
+          <b>stage\current\</b> (the single current version; work happens right here) ·
+          <b>stage\outbox\</b> (every batch sent out).
+        </div>
+    </div>
+    <div class="panel" style="margin-top:10px">
+      <div class="ptitle">Activity log<span class="hint">Every step since this page was opened; cleared on reload</span>
+        <span class="grow"></span><button class="sm" id="btnLogClear">Clear</button></div>
+      <div class="log" id="log"></div>
+    </div>
+  </section>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<div class="busy" id="busy"><div id="busyText">Working…</div></div>
+
+<!-- New project dialog: register in the ledger and create the project room -->
+<div class="modal" id="npModal">
+  <div class="dlg">
+    <div class="ptitle"><span class="no">+</span>New project
+      <span class="hint">Registered in the ledger, and its project room is created in the work library</span></div>
+    <div class="row">
+      <label for="npName" class="req">Full name</label>
+      <input type="text" id="npName" class="grow" placeholder="Full project name">
+    </div>
+    <div class="row">
+      <label for="npFolder" class="req">Short name</label>
+      <input type="text" id="npFolder" class="w150" placeholder="Room folder name">
+      <span class="hint">The short name people know the room by, e.g. "riverside", "north-canal"</span>
+    </div>
+    <div class="row">
+      <label for="npId">Official ID</label>
+      <input type="text" id="npId" class="w150" placeholder="Leave blank if none">
+      <span class="hint">Blank gets a "TMP-xxx" for now; set the real one later</span>
+    </div>
+    <div class="card bad" id="npErr" hidden><span class="grow"></span><button class="sm" data-close>Got it</button></div>
+    <div class="bar">
+      <button class="go" id="btnNpCreate">Create</button>
+      <button id="btnNpCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Register project stages: both gates' stage dropdowns are filtered by this. Side tasks go in a modal, not on the main form -->
+<div class="modal" id="psModal">
+  <div class="dlg">
+    <div class="ptitle"><span class="no">S</span>Register stages<span class="hint" id="psWho"></span></div>
+    <div class="row" style="flex-wrap:wrap" id="psList"></div>
+    <div class="row"><span class="hint">
+      Both gates' stage dropdowns list only what's ticked here. If you do hit an unticked one, the dropdown ends with "+ Other stage…",
+      and picking it registers the stage automatically -- this is a filter, not a gate. Nothing ticked = not registered, and the dropdown lists all six as before.
+    </span></div>
+    <div class="card bad" id="psErr" hidden><span class="grow"></span><button class="sm" data-close>Got it</button></div>
+    <div class="bar">
+      <button class="go" id="btnPsSave">Register</button>
+      <button id="btnPsCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Write the change notes: the .md every issue must carry, without writing it elsewhere first and coming back to pick it -->
+<div class="modal" id="scModal">
+  <div class="dlg wide">
+    <div class="ptitle"><span class="no">✎</span>Change &amp; self-check notes
+      <span class="hint">What changed and how you checked it; saved as "change-notes.md" and goes out with this batch</span></div>
+    <textarea id="scText" class="mdbox" placeholder="# Change &amp; self-check notes&#10;&#10;## What changed&#10;## Known, not handled&#10;## How it was checked&#10;## Downstream sync&#10;## Appendix: Q&amp;A log"></textarea>
+    <div class="card bad" id="scErr" hidden><span class="grow"></span><button class="sm" data-close>Got it</button></div>
+    <div class="bar">
+      <button class="go" id="btnScSave">Save and use</button>
+      <button id="btnScCancel">Cancel</button>
+      <span class="hint" id="scWhere"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const TOKEN = new URLSearchParams(location.search).get("t") || "";
+const $ = (id) => document.getElementById(id);
+
+// ---------------------------------------------------------------- Transport
+async function api(command, payload) {
+  const res = await fetch("/api/" + command, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Gate-Token": TOKEN },
+    body: JSON.stringify(payload || {}),
+  });
+  const out = await res.json();
+  if (!out.ok) { log("× " + (out.error || "Unknown error")); }
+  return out;
+}
+function log(msg) {
+  const t = new Date().toTimeString().slice(0, 8);
+  $("log").textContent += (($("log").textContent ? "\n" : "") + "[" + t + "] " + msg);
+  $("log").scrollTop = $("log").scrollHeight;
+}
+function busy(on, text) { $("busyText").textContent = text || "Working…"; $("busy").classList.toggle("on", !!on); }
+const sizeText = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.ceil(n / 1024).toLocaleString() + " KB";
+// Last segment of a path. Both separators count: the native picker returns forward slashes, elsewhere it's backslashes.
+const leafName = (p) => (p || "").replace(/[\\/]+$/, "").split(/[\\/]/).pop();
+// On screen the last two levels are enough to recognise: `preliminary-design\current`. The full path sits in the title on hover.
+const shortPath = (p) => {
+  const parts = (p || "").replace(/[\\/]+$/, "").split(/[\\/]/).filter(Boolean);
+  return parts.length > 2 ? "…\\" + parts.slice(-2).join("\\") : parts.join("\\");
+};
+
+// ---------------------------------------------------------------- State
+let CTX = {};
+// intake / issue are the files pending in the two gates; rec is what the ledger page currently shows (deletes are matched against it)
+const S = { intake: [], issue: [], places: null, rec: [] };
+const projectId = () => $("project").value;
+const projectName = () => (CTX.projects || []).find(p => p.project_id === projectId())?.project_name || "";
+const stage = () => $("stage").value;
+// The program name is written only in <title>; detail page titles and the quit prompt take it from here
+const APP_TITLE = document.title;
+
+// ---------------------------------------------------------------- Left nav and views
+// A menu on the left, content on the right -- the classic MIS layout: the menu says "where", the content says "what".
+// A job has only two points: ① Log intake (evidence into the room), ② Issue files (work out of the room).
+// The "doing the work" part in between is not in the system: edit directly in the room's stage\current\.
+const NAV = {
+  home:     { view: "v-home", crumb: ["Work", "Dashboard"] },
+  proj:     { view: "v-proj", crumb: ["Projects", "Projects overview"] },
+  in:       { view: "v-in",   crumb: ["Work", "① Log intake"] },
+  out:      { view: "v-out",  crumb: ["Work", "② Issue files"] },
+  rec:      { view: "v-rec",  crumb: ["Ledger", "Ledger"] },
+  // Detail pages are not menu entries: the ledger stays highlighted on the left
+  "det-in": { view: "v-det-in", crumb: ["Ledger", "Ledger", "Intake detail"], menu: "rec" },
+  "det-is": { view: "v-det-is", crumb: ["Ledger", "Ledger", "Issue detail"], menu: "rec" },
+  contacts: { view: "v-contacts", crumb: ["Ledger", "Contacts"] },
+  spec:     { view: "v-spec", crumb: ["Projects", "Spec & health check"] },
+  stds:     { view: "v-stds", crumb: ["Projects", "Standards index"] },
+  sys:      { view: "v-sys",  crumb: ["Other", "System info"] },
+};
+const VIEWS = ["v-home", "v-proj", "v-in", "v-out", "v-rec", "v-det-in", "v-det-is",
+               "v-contacts", "v-spec", "v-stds", "v-sys"];
+
+function setCrumb(parts) {
+  $("crumb").innerHTML = parts.map((text, i) =>
+    (i ? '<span class="sep">/</span>' : "") +
+    (i === parts.length - 1 ? `<b>${text}</b>` : text)).join("");
+}
+// The address bar follows the page: #rec-in, #intake/<id>, #issue/<id>. Detail pages have their own address,
+// so ledger links open in a new tab and the address can be copied to someone else.
+const hashOf = (key, arg) =>
+  key === "det-in" ? "intake/" + encodeURIComponent(arg) :
+  key === "det-is" ? "issue/" + encodeURIComponent(arg) : key;
+const pageUrl = (kind, id) =>
+  `${location.pathname}?t=${encodeURIComponent(TOKEN)}#${kind}/${encodeURIComponent(id)}`;
+function routeFromHash() {
+  const h = decodeURIComponent(location.hash.slice(1));
+  const m = h.match(/^(intake|issue)\/(.+)$/);
+  if (m) { go(m[1] === "intake" ? "det-in" : "det-is", m[2]); return true; }
+  if (h && NAV[h] && !NAV[h].menu) { go(h); return true; }
+  return false;
+}
+window.addEventListener("hashchange", routeFromHash);
+
+function go(key, arg) {
+  const nav = NAV[key];
+  if (!nav) return;
+  S.nav = key;
+  VIEWS.forEach(v => $(v).hidden = v !== nav.view);
+  const menuKey = nav.menu || key;
+  document.querySelectorAll("#menu a").forEach(a => a.classList.toggle("on", a.dataset.nav === menuKey));
+  setCrumb(nav.crumb);
+  window.scrollTo(0, 0);
+  if (!nav.menu) document.title = APP_TITLE;   // detail pages change the title to the record's name
+  // replaceState doesn't fire hashchange, so this won't loop back into go() again
+  history.replaceState(null, "", location.pathname + location.search + "#" + hashOf(key, arg));
+  if (nav.view === "v-rec") loadRec();
+  if (nav.view === "v-det-in") loadIntakeDetail(arg);
+  if (nav.view === "v-det-is") loadIssueDetail(arg);
+  if (nav.view === "v-home") loadHome();
+  if (nav.view === "v-proj") loadProjects();
+  if (nav.view === "v-contacts") loadContacts();
+  if (nav.view === "v-spec") loadSpec();
+  if (nav.view === "v-sys") loadSys();
+  if (nav.view === "v-stds") loadStds();
+}
+
+// ---------------------------------------------------------------- Spec & health check
+// One spec; the server reads it from config.spec_path and this page only displays it. The health check is the executable version of section 9.
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function inlineMd(s) {
+  return esc(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="#" data-link="$2">$1</a>');
+}
+// Just-enough markdown: headings, code blocks, tables, lists, quotes, paragraphs
+function mdToHtml(text) {
+  const lines = String(text).replace(/\r\n/g, "\n").split("\n");
+  const out = []; let i = 0;
+  const flushList = (items, ordered) => out.push(`<${ordered ? "ol" : "ul"}>${items.map(x => `<li>${inlineMd(x)}</li>`).join("")}</${ordered ? "ol" : "ul"}>`);
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^```/.test(line)) {
+      const buf = []; i++;
+      while (i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i++]);
+      i++; out.push(`<pre><code>${esc(buf.join("\n"))}</code></pre>`); continue;
+    }
+    const h = /^(#{1,3})\s+(.*)$/.exec(line);
+    if (h) { out.push(`<h${h[1].length}>${inlineMd(h[2])}</h${h[1].length}>`); i++; continue; }
+    if (/^\|/.test(line)) {
+      const rows = []; while (i < lines.length && /^\|/.test(lines[i])) rows.push(lines[i++]);
+      const cells = r => r.replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+      const head = cells(rows[0]); const body = rows.slice(1).filter(r => !/^\|\s*-+/.test(r));
+      out.push(`<table><thead><tr>${head.map(c => `<th>${inlineMd(c)}</th>`).join("")}</tr></thead><tbody>${
+        body.map(r => `<tr>${cells(r).map(c => `<td>${inlineMd(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`);
+      continue;
+    }
+    if (/^\s*[-*]\s+/.test(line)) {
+      const items = []; while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*[-*]\s+/, ""));
+      flushList(items, false); continue;
+    }
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const items = []; while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*\d+\.\s+/, ""));
+      flushList(items, true); continue;
+    }
+    if (/^>/.test(line)) {
+      const buf = []; while (i < lines.length && /^>/.test(lines[i])) buf.push(lines[i++].replace(/^>\s?/, ""));
+      out.push(`<blockquote>${inlineMd(buf.join(" "))}</blockquote>`); continue;
+    }
+    if (!line.trim()) { i++; continue; }
+    const buf = []; while (i < lines.length && lines[i].trim() && !/^(#|```|\||\s*[-*]\s|\s*\d+\.\s|>)/.test(lines[i])) buf.push(lines[i++]);
+    out.push(`<p>${inlineMd(buf.join(" "))}</p>`);
+  }
+  return out.join("\n");
+}
+let SPEC = null;
+function specTab(name) {
+  document.querySelectorAll("#v-spec .tab").forEach(t => t.hidden = t.dataset.tab !== name);
+  document.querySelectorAll("#v-spec .ptitle button[data-tab]").forEach(b => b.classList.toggle("on", b.dataset.tab === name));
+}
+document.querySelectorAll("#v-spec .ptitle button[data-tab]").forEach(b => b.onclick = () => specTab(b.dataset.tab));
+async function loadSpec() {
+  specTab("check");
+  runCheck();
+  const r = await api("spec-read", {});
+  if (!r.ok) { log("✗ Couldn't read the spec: " + r.error); return; }
+  SPEC = r.data;
+  showCharter();
+  $("guidePick").innerHTML = SPEC.guides.map((g, i) =>
+    `<option value="${i}">${g.folder}${g.exists ? "" : " (missing)"}${g.stages.length ? " · with stage guides" : ""}</option>`).join("");
+  showGuide();
+  $("tplPick").innerHTML = Object.keys(SPEC.templates).map(k => `<option value="${k}">${k}</option>`).join("");
+  showTpl();
+}
+// The charter is read-only: to change it, click "Open file" and edit the text there
+function showCharter() {
+  const c = SPEC.charter;
+  if (!c) return;
+  $("charterNote").textContent = c.exists ? `${c.role} | ${c.path}` : `${c.role} | file not found: ${c.path}`;
+  $("charterBody").innerHTML = c.exists ? mdToHtml(c.text)
+    : `<div class="empty">This charter is not on disk: ${esc(c.path)}</div>`;
+  $("btnCharterOpen").disabled = !c.exists;
+}
+function showGuide() {
+  const g = SPEC.guides[+$("guidePick").value];
+  if (!g) return;
+  $("guideNote").textContent = g.exists ? g.path : "This room has no guide yet -- add one from the template";
+  let html = g.exists ? mdToHtml(g.text) : '<div class="empty">Missing guide</div>';
+  g.stages.forEach(s => { html += `<h1 style="margin-top:28px">${s.stage} · stage guide</h1>` + mdToHtml(s.text); });
+  $("guideBody").innerHTML = html;
+}
+function showTpl() {
+  tplEdit(false);
+  const t = SPEC.templates[$("tplPick").value];
+  $("tplBody").innerHTML = t && (t.exists || t.text)
+    ? mdToHtml(t.text) : '<div class="empty">Template file not found</div>';
+  $("tplNote").textContent = !t ? ""
+    : t.exists ? t.path
+    : t.builtin ? "This file isn't on disk yet -- below is the built-in skeleton; click \"Edit\" and save to make it the template"
+    : "This file isn't on disk yet -- click \"Edit\" to write one and save it";
+  $("btnTplOpen").disabled = !(t && t.exists);
+}
+// Templates are edited in place: read from the file, saved back to the same file (template-save only accepts names on the library's list)
+function tplEdit(on) {
+  $("tplBody").hidden = on;
+  $("tplText").hidden = !on;
+  $("btnTplEdit").hidden = on;
+  $("btnTplSave").hidden = !on;
+  $("btnTplCancel").hidden = !on;
+}
+$("btnTplEdit").onclick = () => {
+  const t = SPEC && SPEC.templates[$("tplPick").value];
+  if (!t) return;
+  $("tplText").value = t.text || "";
+  tplEdit(true);
+  $("tplText").focus();
+};
+$("btnTplCancel").onclick = () => showTpl();
+$("btnTplSave").onclick = async () => {
+  const name = $("tplPick").value;
+  const text = $("tplText").value;
+  if (!text.trim()) { log("✗ A template can't be saved empty"); return; }
+  const r = await api("template-save", { name, text });
+  if (!r.ok) { log("✗ Couldn't save the template: " + r.error); return; }
+  SPEC.templates[name] = { path: r.data.path, exists: true, text, builtin: false };
+  showTpl();
+  log("✓ Template saved: " + r.data.path);
+  runCheck();
+};
+$("guidePick").onchange = showGuide;
+$("tplPick").onchange = showTpl;
+$("btnCharterOpen").onclick = () => { const c = SPEC && SPEC.charter; if (c && c.exists) api("open-path", { path: c.path }); };
+$("btnGuideOpen").onclick = () => { const g = SPEC && SPEC.guides[+$("guidePick").value]; if (g && g.exists) api("open-path", { path: g.path }); };
+$("btnTplOpen").onclick = () => { const t = SPEC && SPEC.templates[$("tplPick").value]; if (t && t.exists) api("open-path", { path: t.path }); };
+let CHECK = [];
+async function runCheck() {
+  $("checkSummary").textContent = "Checking…";
+  const r = await api("library-check", {});
+  if (!r.ok) { $("checkSummary").textContent = "Health check failed: " + r.error; return; }
+  CHECK = r.data.findings;
+  $("checkSummary").textContent = `${r.data.rooms} rooms: ${r.data.errors} errors, ${r.data.warnings} warnings`;
+  renderCheck();
+}
+function renderCheck() {
+  const rows = $("checkErrOnly").checked ? CHECK.filter(x => x.level === "error") : CHECK;
+  const b = $("checkBody");
+  b.innerHTML = rows.length ? rows.map((x, i) => `<tr class="pick" data-i="${i}">
+    <td class="${x.level === "error" ? "lv-err" : "lv-warn"}">${x.level}</td><td>${esc(x.room)}</td>
+    <td class="path">${esc(x.where)}</td><td>${esc(x.what)}</td><td class="hint">${esc(x.hint)}</td></tr>`).join("")
+    : '<tr><td colspan="5" class="empty">All clean, nothing to report</td></tr>';
+  b.querySelectorAll("tr.pick").forEach(tr => tr.onclick = () => {
+    const x = rows[+tr.dataset.i];
+    const root = CTX.library_root + "\\";   // the spec text no longer sits at the library root; don't derive the root from its path
+    const abs = /^[A-Za-z]:\\/.test(x.where) ? x.where : root + x.where;
+    api("open-path", { path: abs });
+  });
+}
+$("btnCheckRun").onclick = runCheck;
+// Export: the server reruns the health check and writes it to markdown (library-check-export); the log says where, and the file is opened
+$("btnCheckExport").onclick = async () => {
+  $("checkSummary").textContent = "Exporting…";
+  const r = await api("library-check-export", { errors_only: $("checkErrOnly").checked });
+  if (!r.ok) { $("checkSummary").textContent = "Export failed: " + r.error; return; }
+  $("checkSummary").textContent = `Exported ${r.data.count} findings (${r.data.errors} errors, ${r.data.warnings} warnings)`;
+  log("✓ Health check report saved: " + r.data.path);
+  api("open-path", { path: r.data.path });
+};
+$("checkErrOnly").onchange = renderCheck;
+
+// ---------------------------------------------------------------- Contacts
+// Name, company, title, phone, grouped by company. One form, two uses: empty means new, clicking a row edits that one.
+let ctEditing = "";
+function ctFill(c) {
+  ctEditing = c.contact_id || "";
+  $("ctName").value = c.name || ""; $("ctOrg").value = c.org || "";
+  $("ctTitle").value = c.title || ""; $("ctPhone").value = c.phone || "";
+  $("ctMode").textContent = ctEditing ? `Editing: ${c.name}` : "";
+  $("ctName").focus();
+}
+async function loadContacts() {
+  const r = await api("contacts", {});
+  if (!r.ok) return;
+  const { contacts, candidates } = r.data;
+  $("ctCount").textContent = contacts.length ? `${contacts.length} people` : "";
+  $("ctOrgList").innerHTML = [...new Set(contacts.map(c => c.org).filter(Boolean))]
+    .map(o => `<option value="${o}">`).join("");
+  $("ctCands").innerHTML = candidates.length ? candidates.map((c, i) =>
+    `<span class="chip" data-i="${i}" title="Seen ${c.times} times as ${c.kind}, last on ${c.last}">${c.name}<span class="k">${c.kind}</span></span>`
+  ).join("") : '<span class="hint">(Every name seen in the ledger is registered)</span>';
+  $("ctCands").querySelectorAll(".chip").forEach(el =>
+    el.onclick = () => ctFill({ name: candidates[+el.dataset.i].name }));
+  const b = $("ctBody");
+  if (!contacts.length) { b.innerHTML = '<tr><td colspan="5" class="empty">No contacts yet</td></tr>'; return; }
+  let lastOrg = null, html = "";
+  contacts.forEach((c, i) => {
+    const org = c.org || "(No company)";
+    if (org !== lastOrg) { html += `<tr class="grp"><td colspan="5">${org}</td></tr>`; lastOrg = org; }
+    html += `<tr class="pick" data-i="${i}"><td>${c.name}</td>
+      <td>${c.title || '<span class="s-skip">—</span>'}</td>
+      <td>${c.phone || '<span class="s-skip">—</span>'}</td><td class="hint">${(c.updated_at || "").slice(0, 10)}</td>
+      <td><button class="sm edit">Edit</button> <button class="sm del" style="margin-left:4px">Delete</button></td></tr>`;
+  });
+  b.innerHTML = html;
+  b.querySelectorAll("tr.pick").forEach(tr => {
+    const c = contacts[+tr.dataset.i];
+    tr.onclick = () => ctFill(c);
+    tr.querySelector(".del").onclick = async (event) => {
+      event.stopPropagation();
+      if (!confirm(`Delete contact "${c.name}"?`)) return;
+      const d = await api("contact-delete", { contact_id: c.contact_id });
+      if (!d.ok) { log("✗ Delete failed: " + d.error); return; }
+      log(`✓ Contact deleted: ${c.name}`);
+      if (ctEditing === c.contact_id) ctFill({});
+      loadContacts();
+    };
+  });
+}
+$("btnCtReload").onclick = loadContacts;
+$("btnCtClear").onclick = () => ctFill({});
+$("btnCtSave").onclick = async () => {
+  $("ctErr").hidden = true;
+  const r = await api("contact-save", {
+    contact_id: ctEditing, name: $("ctName").value.trim(), org: $("ctOrg").value.trim(),
+    title: $("ctTitle").value.trim(), phone: $("ctPhone").value.trim(),
+  });
+  if (!r.ok) { showError("ctErr", r.error); return; }
+  log(`✓ Contact saved: ${r.data.name}${r.data.org ? "  " + r.data.org : ""}`);
+  ctFill({});
+  loadContacts();
+};
+// ---------------------------------------------------------------- Standards index
+// Rows are scanned from disk; only four cells are edited: status / superseded by / scope / notes. Click a row to edit, rescan after saving.
+let STDS = null, stdsEditing = null;
+function stdsRow(x) {
+  const open = (label, path) => path ? `<button class="sm" data-open="${esc(path)}">${label}</button>` : "";
+  const st = x.status === "current" ? x.status : `<span class="${x.status === "to verify" ? "s-new" : "s-skip"}">${esc(x.status)}</span>`;
+  const sup = x.superseded_by ? `<div class="hint">→ ${esc(x.superseded_by)}</div>` : "";
+  return `<tr class="pick" data-key="${esc(x.key)}">
+    <td class="hint">${esc(x.category || "")}</td>
+    <td class="path" title="${esc(x.stem || x.key)}">${esc(x.code || "—")}</td>
+    <td>${esc(x.title)}${x.kind && x.kind !== "standard" && (STDS.mixed || {})[x.category]
+        ? ` <span class="hint">${esc(x.kind)}</span>` : ""}</td>
+    <td class="hint">${esc(x.year || "")}</td><td>${st}${sup}</td>
+    <td>${x.scope ? esc(x.scope) : '<span class="s-skip">—</span>'}</td>
+    <td class="hint">${esc(x.notes || "")}</td>
+    <td>${open("PDF", x.pdf)} ${open("Word", x.doc)} ${open("md", x.md)} ${open("Excerpt", x.excerpt)}</td></tr>`;
+}
+function renderStds() {
+  if (!STDS) return;
+  const q = $("stdsFilter").value.trim().toLowerCase();
+  const cat = $("stdsCat").value, kind = $("stdsKind").value, status = $("stdsStatus").value;
+  const rows = STDS.items.filter(x =>
+    (!cat || x.category === cat) && (!kind || x.kind === kind) &&
+    (!status || x.status === status) &&
+    (!q || [x.category, x.code, x.title, x.scope, x.notes].join(" ").toLowerCase().includes(q)));
+  const b = $("stdsBody");
+  b.innerHTML = rows.length ? rows.map(stdsRow).join("")
+    : `<tr><td colspan="8" class="empty">${STDS.items.length ? "No matches" : "Nothing in the three _reference categories yet"}</td></tr>`;
+  b.querySelectorAll("tr.pick").forEach(tr => {
+    tr.onclick = () => stdsFill(STDS.items.find(x => x.key === tr.dataset.key));
+    tr.querySelectorAll("[data-open]").forEach(btn => btn.onclick = (event) => {
+      event.stopPropagation(); api("open-path", { path: btn.dataset.open });
+    });
+  });
+}
+function stdsFill(x) {
+  stdsEditing = x ? x.key : null;
+  $("stdsEdit").hidden = !x;
+  if (!x) return;
+  $("stdsEditName").textContent = `Editing: ${x.category} · ${x.code || x.title}`;
+  $("stdsStatusIn").value = x.status || "current";
+  $("stdsSup").value = x.superseded_by || ""; $("stdsScope").value = x.scope || ""; $("stdsNotes").value = x.notes || "";
+  $("stdsScope").focus();
+}
+async function loadStds() {
+  const r = await api("standards", {});
+  if (!r.ok) { log("✗ Couldn't read _reference: " + r.error); return; }
+  STDS = r.data;
+  const c = STDS.counts;
+  $("stdsRoot").textContent = STDS.root; $("stdsRoot").onclick = () => api("open-path", { path: STDS.root });
+  // The title bar reports how many entries each category has; categories whose folder doesn't exist yet say so, so nobody thinks they're empty
+  $("stdsCount").textContent = STDS.exists
+    ? STDS.categories.map(x => `${x.name} ${x.exists ? x.count : "(no such folder)"}`).join(" · ") +
+      (c["pending"] ? ` · pending ${c["pending"]}` : "")
+    : "_reference folder does not exist";
+  $("stdsCat").innerHTML = '<option value="">All categories</option>' +
+    STDS.categories.map(x => `<option value="${esc(x.name)}">${esc(x.name)}</option>`).join("");
+  $("stdsKind").innerHTML = '<option value="">All kinds</option>' +
+    (STDS.kinds || []).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join("");
+  // Which categories mix two or more kinds (decides whether to tag the kind after the title)
+  STDS.mixed = {};
+  STDS.categories.forEach(c => {
+    STDS.mixed[c.name] = new Set(STDS.items.filter(x => x.category === c.name)
+      .map(x => x.kind)).size > 1;
+  });
+  const opts = STDS.statuses.map(s => `<option value="${s}">${s}</option>`).join("");
+  $("stdsStatus").innerHTML = '<option value="">All statuses</option>' + opts;
+  $("stdsStatusIn").innerHTML = opts;
+  $("stdsPending").innerHTML = STDS.pending.length ? STDS.pending.map(p =>
+    `<span class="chip" data-open="${esc(p.path)}" title="${esc(p.category || "")} · open">${esc(p.name)}</span>`).join("")
+    : '<span class="hint">(Nothing pending)</span>';
+  $("stdsPending").querySelectorAll(".chip").forEach(el => el.onclick = () => api("open-path", { path: el.dataset.open }));
+  if (stdsEditing && !STDS.items.some(x => x.key === stdsEditing)) stdsFill(null);
+  renderStds();
+}
+["stdsFilter", "stdsCat", "stdsKind", "stdsStatus"].forEach(id => $(id).oninput = renderStds);
+$("btnStdsReload").onclick = loadStds;
+$("btnStdsCancel").onclick = () => stdsFill(null);
+$("btnStdsSave").onclick = async () => {
+  $("stdsErr").hidden = true;
+  const r = await api("standard-save", {
+    key: stdsEditing, status: $("stdsStatusIn").value, superseded_by: $("stdsSup").value.trim(),
+    scope: $("stdsScope").value.trim(), notes: $("stdsNotes").value.trim(),
+  });
+  if (!r.ok) { showError("stdsErr", r.error); return; }
+  log(`✓ Recorded: ${r.data.key} · ${r.data.status}`);
+  stdsFill(null);
+  loadStds();
+};
+
+// Both ledger tables are on one page; the menu scrolls to and highlights the one clicked -- so nobody thinks they clicked the wrong thing
+function navTo(key) {
+  if (key === "quit") return $("btnQuit").click();
+  go(key);
+}
+document.querySelectorAll("#menu a").forEach(a => a.onclick = () => navTo(a.dataset.nav));
+document.querySelectorAll(".kpi.link").forEach(k => k.onclick = () => navTo(k.dataset.nav));
+$("btnNarrow").onclick = () =>
+  localStorage.setItem("gate-nav-narrow", $("app").classList.toggle("narrow") ? "1" : "");
+if (localStorage.getItem("gate-nav-narrow")) $("app").classList.add("narrow");
+
+// ---------------------------------------------------------------- Say what's missing, up front
+// Rule: whatever can be said before the button is clicked is never left for a popup after the click.
+// Each gate reports "what's still missing"; until everything is in place the main button is grey, with the missing items named next to it -- click to jump there.
+const GATES = {
+  in: { button: "btnIntake", miss: "inMiss", card: "inErr", need: () => [
+    { label: "Files", ok: S.intake.length > 0, focus: "intakeList" },
+    { label: "Project", ok: !!$("inProject").value, focus: "inProject" },
+    { label: "Stage", ok: !!$("inStage").value, focus: "inStage" },
+    { label: "Source", ok: !!$("sourceOrg").value.trim(), focus: "sourceOrg" },
+    { label: "Subject", ok: !!$("subject").value.trim(), focus: "subject" },
+    // Made required on 2026-09-18: a default of "not a reply" meant nobody had thought about it -- only 10 of 136
+    // intakes were linked. The point is to think it through once; "not a reply to any issue" is still a valid answer.
+    { label: "In reply to", ok: !!$("replies").value, focus: "replies" },
+  ]},
+  out: { button: "btnIssue", miss: "outMiss", card: "outErr", need: () => [
+    { label: "Project", ok: !!projectId(), focus: "project" },
+    { label: "Stage", ok: !!stage(), focus: "stage" },
+    { label: "Replies to", ok: issueIntakeIds().length > 0, focus: "issueIntakes" },
+    { label: "Recipient", ok: !!$("recipient").value.trim(), focus: "recipient" },
+    // The subject goes into the outbox folder name: "date-recipient" alone can't tell apart two batches sent to the same person on the same day
+    { label: "Subject", ok: !!$("issueSubject").value.trim(), focus: "issueSubject" },
+    { label: "Change notes", ok: !!$("selfcheck").value.trim(), focus: "selfcheck" },
+    { label: "Looked at the files", ok: $("eyeballed").checked, focus: "eyeballed" },
+    { label: "Channel", ok: !!$("issueChannel").value, focus: "issueChannel" },
+    { label: "Files", ok: S.issue.length > 0, focus: "issueDrop" },
+  ]},
+};
+// A field named in a server error takes the user straight to it. Matched case-insensitively, first hit wins.
+const FIELD_BY_LABEL = [
+  ["subject", "subject"], ["source", "sourceOrg"], ["received date", "intakeDate"],
+  ["project id", "project"], ["stage", "stage"], ["recipient", "recipient"],
+  ["change notes", "selfcheck"], ["self-check notes", "selfcheck"], ["intake", "issueIntakes"],
+];
+// Both gates have a "Subject": on the issue side the same name is a different input
+const FIELD_BY_GATE = { out: { "subject": "issueSubject" } };
+
+function focusField(id) {
+  const el = $(id);
+  if (!el) return;
+  el.scrollIntoView({ block: "center", behavior: "smooth" });
+  if (typeof el.focus === "function" && el.tagName !== "DIV") { el.focus(); el.classList.add("bad"); }
+}
+function refreshReady(key) {
+  const spec = GATES[key];
+  const missing = spec.need().filter(item => !item.ok);
+  $(spec.button).disabled = missing.length > 0;
+  const label = $(spec.miss);
+  label.textContent = missing.length
+    ? `Still missing ${missing.length}: ${missing.map(m => m.label).join(", ")}`
+    : "";
+  label.onclick = missing.length ? () => focusField(missing[0].focus) : null;
+}
+const refreshAllReady = () => Object.keys(GATES).forEach(refreshReady);
+
+function showError(key, message) {
+  const card = $(GATES[key].card);
+  card.querySelector(".grow").textContent = message;
+  card.hidden = false;
+  const text = String(message).toLowerCase();
+  const named = FIELD_BY_LABEL.find(([label]) => text.includes(label));
+  if (named) focusField((FIELD_BY_GATE[key] || {})[named[0]] || named[1]);
+}
+document.querySelectorAll("[data-close]").forEach(button =>
+  button.onclick = () => button.closest(".card").hidden = true);
+
+// Check a field as soon as it's left, don't wait for the button; the red border goes away once typing starts
+document.addEventListener("blur", (event) => {
+  const id = event.target.id;
+  if (!id) return;
+  const item = Object.values(GATES).flatMap(g => g.need()).find(n => n.focus === id);
+  if (item) event.target.classList.toggle("bad", !item.ok);
+}, true);
+document.addEventListener("input", (event) => {
+  if (event.target.id) event.target.classList.remove("bad");
+  refreshAllReady();
+});
+document.addEventListener("change", refreshAllReady);
+
+// ---------------------------------------------------------------- Drag and drop
+// Neither gate accepts drag and drop (files always go through the picker). Drops nobody catches are blocked here:
+// by default the browser opens a dropped file as a new page, which replaces the whole UI.
+["dragover", "drop"].forEach(ev =>
+  document.addEventListener(ev, e => e.preventDefault()));
+// Native picker: show a hint meanwhile, and say so in the log if it was cancelled -- never silently
+async function pickFiles(title, initial) {
+  busy(true, "The picker is open -- if you can't see it, click the flashing icon in the taskbar");
+  const r = await api("pick-files", { title, initial: initial || "" });
+  busy(false);
+  if (!r.ok) return [];
+  const items = r.data.items || (r.data.paths || []).map(p => ({ path: p, name: leafName(p), size: 0 }));
+  if (!items.length) log("(No files chosen)");
+  return items;
+}
+async function pickFolder(title, initial) {
+  busy(true, "The picker is open -- if you can't see it, click the flashing icon in the taskbar");
+  const r = await api("pick-folder", { title, initial: initial || "" });
+  busy(false);
+  if (!r.ok) return "";
+  if (!r.data.path) { log("(No folder chosen)"); return ""; }
+  return r.data.path;
+}
+
+// ---- Stage dropdown: lists only the stages registered for this project, with an "Other stage…" opening at the end.
+// Some projects only ever have "other"; listing all six is noise. This is a filter, not a gate:
+// when a new stage does come up, the opening expands all six, and whichever is picked the program registers in
+// the project list when filing (gate_api.cli._remember_stage). Projects with no registered stages list all six, as before.
+const OTHER_STAGES = "+ Other stage…";
+function stagesOf(projectId) {
+  const p = (CTX.projects || []).find(x => x.project_id === projectId);
+  return (p && p.stages && p.stages.length) ? p.stages : null;
+}
+function fillStages(selectId, projectId, expand) {
+  const el = $(selectId), keep = el.value;
+  const mine = expand ? null : stagesOf(projectId);
+  const list = mine || CTX.stages;
+  const needOpening = !!mine && mine.length < CTX.stages.length;
+  el.innerHTML = '<option value="">(Choose)</option>'
+    + list.map(x => `<option>${x}</option>`).join("")
+    + (needOpening ? `<option value="${OTHER_STAGES}">${OTHER_STAGES}</option>` : "");
+  el.value = (keep && list.includes(keep)) ? keep : "";
+  el.dataset.pid = projectId || "";
+}
+// When "Other stage…" is selected, spread out all six for the user to keep choosing. true = this change only expanded, stop here.
+function expandedStages(selectId) {
+  const el = $(selectId);
+  if (el.value !== OTHER_STAGES) return false;
+  fillStages(selectId, el.dataset.pid || "", true);
+  el.focus();
+  return true;
+}
+
+// ---------------------------------------------------------------- Startup
+async function boot() {
+  const r = await api("context");
+  if (!r.ok) { $("summary").textContent = "⚠ Can't read the ledger"; return; }
+  CTX = r.data;
+  // The short name is the room's name (used for addresses), the ID is the identity in the ledger -- show both, neither replaces the other
+  const projectItems = CTX.projects.map(p =>
+    `<option value="${p.project_id}">${p.folder ? p.folder + "  " : ""}${p.project_id}  ${p.project_name}</option>`);
+  const keep = ["project", "stage", "inProject", "inStage", "recProject"]
+    .map(id => [id, $(id).value]);
+  $("project").innerHTML = '<option value="">(Choose)</option>' + projectItems.join("");
+  $("inProject").innerHTML = '<option value="">(Choose)</option>' + projectItems.join("");
+  $("recProject").innerHTML = '<option value="">(All projects)</option>' + projectItems.join("");
+  fillStages("stage", $("project").value);
+  fillStages("inStage", $("inProject").value);
+  keep.forEach(([id, value]) => { if (value) $(id).value = value; });
+  $("channel").innerHTML = CTX.source_channels.map(c => `<option>${c}</option>`).join("");
+  $("issueChannel").innerHTML = (CTX.channels || []).map(c => `<option>${c}</option>`).join("");
+  $("intakeDate").value = CTX.today;
+  $("issueDate").value = CTX.today;
+  $("summary").textContent = `One ledger · ${CTX.todo_count} intakes to do`;
+  $("badgeTodo").textContent = CTX.todo_count || "";
+  log("Connected to the ledger: " + CTX.ledger_path);
+
+  const saved = JSON.parse(localStorage.getItem("gate-ui") || "{}");
+  if (saved.project && !$("project").value) $("project").value = saved.project;
+  if (saved.stage && !$("stage").value) $("stage").value = saved.stage;
+  if (saved.inProject && !$("inProject").value) $("inProject").value = saved.inProject;
+  if (saved.inStage && !$("inStage").value) $("inStage").value = saved.inStage;
+  if (saved.channel) $("channel").value = saved.channel;
+  if (saved.issueChannel) $("issueChannel").value = saved.issueChannel;
+  const s = await api("intake-suggestions");
+  if (s.ok) $("orgList").innerHTML = s.data.source_orgs.map(o => `<option value="${o}">`).join("");
+  if (!S.booted) { S.booted = true; if (!routeFromHash()) go("home"); }
+  else if (S.nav === "home") loadHome();
+  await onCoord();
+  await onInProject();
+  refreshAllReady();
+}
+function saveState() {
+  localStorage.setItem("gate-ui", JSON.stringify({
+    project: projectId(), stage: stage(),
+    inProject: $("inProject").value, inStage: $("inStage").value,
+    channel: $("channel").value,
+    issueChannel: $("issueChannel").value,
+  }));
+}
+
+// ---------------------------------------------------------------- Withdraw
+// Each gate has its own "Withdraw last". Withdrawing never deletes files: they move into the project room's _withdrawn folder.
+async function refreshUndo() {
+  const r = await api("undoable", { project_id: projectId() });
+  S.undo = r.ok ? r.data : { intake: null, issue: null };
+  [["btnUndoIntake", "intake", "Withdraw last intake"],
+   ["btnUndoIssue", "issue", "Withdraw last issue"]].forEach(([id, key, label]) => {
+    const item = S.undo[key];
+    $(id).disabled = !item;
+    $(id).textContent = item ? `↶ Withdraw: ${item.label}` : `↶ ${label}`;
+    $(id).title = item ? item.dir : "";
+  });
+}
+async function doUndo(key, command, idField, confirmText) {
+  const item = (S.undo || {})[key];
+  if (!item) return;
+  if (!confirm(`${confirmText}\n\n${item.label}\n${item.dir}\n\n` +
+    "No files are deleted: they only move into the project room's \"_withdrawn\" folder and can be recovered any time.")) return;
+  busy(true, "Withdrawing…");
+  // An issue withdraws "the whole batch sent by the last click", not a single file in it
+  const r = await api(command, item.batch_id ? { batch_id: item.batch_id } : { [idField]: item.id });
+  busy(false);
+  if (!r.ok) return alert("Withdraw failed, nothing was touched:\n" + r.error);
+  log(`↶ Withdrawn ${item.label} → ${r.data.moved_to}`);
+  await boot();
+}
+$("btnUndoIntake").onclick = () => doUndo("intake", "withdraw-intake", "intake_id", "Withdraw this intake?");
+$("btnUndoIssue").onclick = () => doUndo("issue", "withdraw-issue", "issue_id", "Withdraw this issue?");
+
+// ---------------------------------------------------------------- Dashboard
+// "No action needed": this intake doesn't need a reply from me; one click takes it off the list. **This lives in the ledger** --
+// it changes intakes.todo (`set-todo`), so another computer sees the same list.
+// The local-only localStorage "collapse" was removed on 2026-09-18: a tidy screen and the ledger's view are the same thing
+// and shouldn't have two mechanisms. The way back is in the header: "N with no action needed · show", each row has "Needs action" to undo.
+// Closing still only comes from issues (replied means done); that's separate from this button.
+let showSkipped = false;
+
+// "Copy": the full picture of this intake as one block on the clipboard -- folder, project, stage, source, subject, file list,
+// which issue it replies to, the current folder and where the issue goes. Paste it to an AI and there's nothing left to explain.
+async function copyBrief(row) {
+  const r = await api("intake-brief", { intake_id: row.intake_id });
+  if (!r.ok) { log("✗ Copy failed: " + r.error); return; }
+  const text = r.data.text;
+  let done = false;
+  try { await navigator.clipboard.writeText(text); done = true; } catch {}
+  if (!done) {
+    // Fall back to the old way when the clipboard API isn't available
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { done = document.execCommand("copy"); } catch {}
+    ta.remove();
+  }
+  log((done ? "✓ Copied to clipboard:" : "✗ Copy didn't work, select the text below yourself:") + "\n" + text);
+}
+
+async function loadHome() {
+  $("kTodo").textContent = CTX.todo_count ?? "–";
+  const r = await api("intakes", { all: true, limit: 200 });
+  if (!r.ok) return;
+  const todo = r.data.intakes.filter(x => x.todo);
+  // The "no action needed" set: todo=0 in the ledger and never replied to (ones with an issue attached are closed, not "no action needed";
+  // they're history and don't belong in the undo list). Intakes logged without "Needs action / reply" ticked are here too.
+  const skipped = r.data.intakes.filter(x => !x.todo && !x.issue_count);
+  // The to-do count is recomputed from this list on the spot: after a click the three counters follow, no UI restart needed
+  CTX.todo_count = todo.length;
+  $("kTodo").textContent = todo.length;
+  $("summary").textContent = `One ledger · ${todo.length} intakes to do`;
+  $("badgeTodo").textContent = todo.length || "";
+
+  const pool = showSkipped ? todo.concat(skipped) : todo;
+  // Project and stage filters (added 2026-09-21: handing out work goes by project and stage; without filters it's awkward).
+  // The dropdowns are rebuilt from the list at hand: only projects and stages that actually exist, so a choice never yields an empty table;
+  // when the list changes (no action needed, refresh) the previous choice is kept if still there, otherwise it falls back to "All".
+  const rows = homeFilter(pool);
+  const b = $("homeBody");
+  // The manual "Close" button was removed on 2026-08-20: closing comes from replying with an issue, not from a click
+  b.innerHTML = rows.length ? rows.map((x, i) => `
+    <tr class="${x.todo ? "" : "s-skip"}" data-i="${i}">
+    <td>${x.received_date}</td>
+    <td>${x.folder || '<span class="s-new">General</span>'}</td>
+    <td>${x.stage || '<span class="s-skip">—</span>'}</td>
+    <td>${e(x.source_org) || "(No source)"}${x.archive_dir
+      ? ` · <a href="#" class="open" data-path="${e(x.archive_dir)}" title="Open in Explorer: ${e(x.archive_dir)}">${e(x.subject) || "(No subject)"}</a>`
+      : (x.subject ? " · " + e(x.subject) : "")}</td>
+    <td class="num">${x.file_count}</td>
+    <td><button class="sm copy" title="Copy the folder path + project/stage/source/subject/file list/current folder; paste it to an AI as a complete brief">Copy</button>
+      <button class="sm todo" title="${x.todo
+        ? "I don't need to reply to this: the ledger marks it as no action needed and it leaves the list. To undo, click &quot;show&quot; in the header"
+        : "Back to needs action: this one returns to the to-do list"}">${x.todo ? "No action needed" : "Needs action"}</button></td></tr>
+  `).join("") : `<tr><td colspan="6" class="empty">${
+    pool.length ? "No intakes to do for this project / stage" : "No intakes to do"}</td></tr>`;
+  // Clicking a dashboard row doesn't open the folder (2026-09-03): on this page a slip of the hand is too easy.
+  // 2026-09-22 gave "Subject" an explicit way in: clicking those words opens the intake folder (`open-path`),
+  // using the same a.open[data-path] + bindOpens as the ledger detail -- don't write a second open routine.
+  bindOpens(b);
+  b.querySelectorAll("tr[data-i]").forEach(tr => {
+    const row = rows[+tr.dataset.i];
+    tr.querySelector("button.copy").onclick = (event) => { event.stopPropagation(); copyBrief(row); };
+    tr.querySelector("button.todo").onclick = async (event) => {
+      event.stopPropagation();
+      const want = !row.todo;
+      const res = await api("set-todo", { intake_id: row.intake_id, todo: want });
+      if (!res.ok) return;
+      const label = `${row.received_date}  ${row.folder || "General"}  ${
+        row.source_org || "(No source)"}${row.subject ? " · " + row.subject : ""}`;
+      log((want ? "✓ Back to \"needs action\": " : "✓ Marked \"no action needed\" (undo via \"show\" in the header): ") + label);
+      loadHome();
+    };
+  });
+
+  const button = $("btnHomeSkipped");
+  button.hidden = skipped.length === 0;
+  button.textContent = showSkipped
+    ? `Hide the ${skipped.length} with no action needed`
+    : `${skipped.length} with no action needed · show`;
+  button.onclick = () => { showSkipped = !showSkipped; loadHome(); };
+}
+// The dashboard's two filters: rebuild the dropdowns from the list first, then filter the list by them -- the other way round gives "selectable, but filters to empty".
+// Projects split by short name (folder); intakes without a project go under "General"; intakes without a stage under "(No stage)".
+// The placeholder value can't be an empty string, empty means "All".
+const HOME_NONE = "__none__";
+function homeRebuild(sel, values, allLabel, noneLabel, order) {
+  const had = sel.value;
+  const names = [...new Set(values.filter(Boolean))].sort(order);
+  sel.innerHTML = `<option value="">${allLabel}</option>` +
+    names.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join("") +
+    (values.some(v => !v) ? `<option value="${HOME_NONE}">${noneLabel}</option>` : "");
+  sel.value = [...sel.options].some(o => o.value === had) ? had : "";
+  return sel.value;
+}
+function homeFilter(pool) {
+  const proj = homeRebuild($("homeProject"), pool.map(x => x.folder), "(All projects)", "General",
+    (a, b) => a.localeCompare(b, "zh"));
+  const byProj = !proj ? pool : pool.filter(x => proj === HOME_NONE ? !x.folder : x.folder === proj);
+  // Stage candidates come from the rows left after the project filter: switch project and stages unique to the other one shouldn't linger
+  const rank = s => { const i = (CTX.stages || []).indexOf(s); return i < 0 ? 99 : i; };
+  const stage = homeRebuild($("homeStage"), byProj.map(x => x.stage), "(All stages)", "(No stage)",
+    (a, b) => rank(a) - rank(b) || a.localeCompare(b, "zh"));
+  return !stage ? byProj : byProj.filter(x => stage === HOME_NONE ? !x.stage : x.stage === stage);
+}
+$("homeProject").onchange = loadHome;
+$("homeStage").onchange = loadHome;
+// ---------------------------------------------------------------- Projects overview
+// One row per room in the ledger. The room's AGENTS.md holds the project's ground rules; one button per project opens it directly --
+// the address is computed by the program (<library>\<short name>\AGENTS.md), the UI only shows it.
+// The project list's two jobs (new project, set official ID) are done on this page too: changes to the project list belong to its page,
+// the intake form only handles intake.
+async function loadProjects() {
+  const r = await api("project-overview");
+  const b = $("projBody");
+  if (!r.ok) { b.innerHTML = `<tr><td colspan="7" class="empty">Can't read projects</td></tr>`; return; }
+  const rows = r.data.projects || [];
+  S.projects = rows;
+  $("projCount").textContent = rows.length ? `${rows.length} projects` : "";
+  b.innerHTML = rows.length ? rows.map((p, i) => `
+    <tr data-i="${i}">
+    <td>${p.house_exists
+          ? `<span class="open" data-do="dir" title="${p.project_dir}">${p.folder}</span>`
+          : `<span class="s-skip" title="Room not created yet: ${p.project_dir}">${p.folder}</span>`}</td>
+    <td class="hint">${p.project_id}</td>
+    <td>${p.project_name}</td>
+    <td>${(p.stages && p.stages.length)
+          ? p.stages.join(", ")
+          : `<span class="s-skip">Not registered (dropdown lists all six)</span>`}
+        <button class="sm" data-do="stages" title="Register which stages this project actually has; both gates' stage dropdowns filter by it">Edit…</button></td>
+    <td class="num">${p.todo_count ? `<span class="s-new">${p.todo_count}</span>` : ""}</td>
+    <td><button class="sm" data-do="guide" ${p.has_guide ? `title="${p.guide_path}"` : `disabled title="This room has no AGENTS.md yet"`}>AGENTS.md</button></td>
+    <td>${p.provisional
+          ? `<button class="sm" data-do="bind" title="Switch over once the official ID is assigned; the intakes and issues in the ledger follow">Set official ID…</button>`
+          : ""}</td></tr>
+  `).join("") : `<tr><td colspan="6" class="empty">No projects in the ledger yet</td></tr>`;
+  b.querySelectorAll("[data-do]").forEach(el => el.onclick = () => {
+    const row = rows[+el.closest("tr").dataset.i];
+    if (el.dataset.do === "bind") return bindProject(row);
+    if (el.dataset.do === "stages") return psOpen(row);
+    const path = el.dataset.do === "guide" ? row.guide_path : row.project_dir;
+    api("open-path", { path });
+    log(`Opened ${path}`);
+  });
+}
+$("btnProjReload").onclick = () => { loadProjects(); log("Projects overview refreshed."); };
+
+// Register which stages this project actually has. The initial value was derived by the program from the ledger (what this project received and sent);
+// here it's only corrected -- it's a filter that saves the eyes some work; ticking too many or too few never blocks anything.
+let psRow = null;
+function psOpen(row) {
+  psRow = row;
+  const now = new Set(row.stages || []);
+  $("psWho").textContent = `${row.folder}  ${row.project_id}`;
+  $("psList").innerHTML = CTX.stages.map(x =>
+    `<label class="ck"><input type="checkbox" value="${x}" ${now.has(x) ? "checked" : ""}> ${x}</label>`
+  ).join(" ");
+  $("psErr").hidden = true;
+  $("psModal").classList.add("on");
+}
+function psClose() { $("psModal").classList.remove("on"); psRow = null; }
+$("btnPsCancel").onclick = psClose;
+$("psModal").onclick = (e) => { if (e.target === $("psModal")) psClose(); };
+$("btnPsSave").onclick = async () => {
+  if (!psRow) return;
+  const picked = [...$("psList").querySelectorAll("input:checked")].map(x => x.value);
+  const row = psRow;
+  busy(true, "Registering stages…");
+  const r = await api("project-stages", { project_id: row.project_id, stages: picked });
+  busy(false);
+  if (!r.ok) {
+    $("psErr").querySelector(".grow").textContent = "Registration failed: " + r.error;
+    $("psErr").hidden = false;
+    return;
+  }
+  psClose();
+  log(`✓ Stages for ${row.folder}: ${r.data.stages.join(", ") || "(not registered, dropdown lists all six)"}`);
+  await boot();      // both gates' stage dropdowns follow
+  loadProjects();
+};
+
+// ---- Set official ID: the projects/issues/intakes records change together, so history stays attached
+async function bindProject(row) {
+  const fresh = (prompt(`Has the official ID for "${row.project_name}" been assigned? Enter it here:\n` +
+    `It's currently ${row.project_id}; every intake and issue already in the ledger moves over with it.`) || "").trim();
+  if (!fresh) return;
+  busy(true, "Setting official ID…");
+  const r = await api("project-bind", { old_project_id: row.project_id, new_project_id: fresh });
+  busy(false);
+  if (!r.ok) return alert("Couldn't set the ID, nothing in the ledger was touched:\n" + r.error);
+  log(`✓ ID set: ${row.project_id} → ${fresh}`);
+  await boot();
+  loadProjects();
+}
+$("btnHomeReload").onclick = () => { loadHome(); log("Dashboard refreshed."); };
+// ---------------------------------------------------------------- System info
+function loadSys() {
+  $("sysLedger").textContent = CTX.ledger_path || "";
+  $("sysRoot").textContent = CTX.library_root || "";
+  $("sysRoot").onclick = () => CTX.library_root && api("open-path", { path: CTX.library_root });
+}
+$("btnLogClear").onclick = () => { $("log").textContent = ""; };
+
+// ---------------------------------------------------------------- Ledger
+const STATUS_CLASS = { "withdrawn": "s-bad", "filed": "s-rep", "issued": "s-rep",
+                       "partly withdrawn": "s-new" };  // part of a batch withdrawn: it has to show
+const statusCell = (s) => `<span class="${STATUS_CLASS[s] || ""}">${s || ""}</span>`;
+// Whether this intake has been answered -- judged by whether an issue hangs under it, not by the "Needs action / reply" tick.
+// "Done" shouldn't be something you click: once it's sent it's answered; if nothing was sent, a hundred clicks don't answer it.
+function doneCell(r) {
+  if (r.issue_count) return `<span class="s-rep" title="${r.issue_count} issue(s) already hang under this intake">Done</span>`;
+  return r.todo
+    ? '<span class="s-new">To do</span>'
+    : '<span class="s-skip" title="Logged as no action needed, and no issue hangs under it">No action needed</span>';
+}
+// One table, two kinds of rows: an intake row is one intake in the ledger, an issue row is a whole batch (batch_id).
+// The back end still keeps two ledgers and two delete commands (decided 2026-09-21: how the back end records things doesn't matter here);
+// this page only merges both into one running list and dispatches by direction.
+const REC = {
+  in: {
+    noun: "intake", command: "delete-intakes", field: "intake_ids",
+    id: r => r.intake_id,
+    expand: r => [r.intake_id],
+    date: r => r.received_date,
+    stage: r => r.stage || "",
+    org: r => r.source_org || "",
+    person: r => r.source_person || "",
+    files: r => [],                       // the intake list only gives a count; file names are on the detail page
+    count: r => r.file_count || 0,
+    link: (r, text) => intakePageLink(r, text),
+    label: r => `${r.received_date} ${r.source_org || "(No source)"}` +
+                `${r.subject ? " · " + r.subject : ""} (${r.file_count} files)`,
+  },
+  is: {
+    noun: "issue", command: "delete-issues", field: "issue_ids",
+    id: r => r.issue_id,
+    expand: r => r.issue_ids || [r.issue_id],
+    date: r => r.issue_date,
+    stage: r => r.stage || "",
+    org: r => r.recipients || "",
+    person: () => "",
+    files: r => (r.files && r.files.length ? r.files : [r.file_name]).filter(Boolean),
+    count: r => r.file_count || (r.files ? r.files.length : 1),
+    link: (r, text) => issuePageLink(r, text),
+    label: r => `${r.issue_date}${r.stage ? " " + r.stage : ""} (${r.file_count || 1} files: ` +
+                `${(r.files || [r.file_name]).join(", ")})`,
+  },
+};
+// Checkbox ids must be unique across both kinds of rows, so they carry the direction as a prefix
+const recKey = (row) => `${row.kind}:${REC[row.kind].id(row.raw)}`;
+
+// The "Content" cell: the subject is a link (opens the detail page), with the entry's files listed in grey underneath.
+// Old records without a subject fall back to the file name -- the entry has to be recognisable somehow.
+function recContent(row) {
+  const spec = REC[row.kind], r = row.raw;
+  const names = spec.files(r), n = spec.count(r);
+  const title = e(r.subject) || (names.length ? e(names[0]) : "(No subject)");
+  // An issue batch with kept files is counted as "N sent, M kept", and kept file names get a "(kept)" after them
+  const marked = row.kind === "is" ? fileNames(names, r.roles) : names.map(e);
+  const head = row.kind === "is" && r.kept_count ? roleSummary(r.roles) : `${n} files`;
+  const files = names.length
+    ? (names.length === 1 ? marked[0] : `${head} · ` + marked.join(" · "))
+    : (n ? `${n} files` : "");
+  return spec.link(r, title) + (files ? `<div class="files">${files}</div>` : "");
+}
+
+function recRows(rows) {
+  const body = $("recBody");
+  S.rec = rows;
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="9" class="empty">No intakes or issues yet</td></tr>';
+    syncSel();
+    return;
+  }
+  body.innerHTML = rows.map((row, i) => {
+    const spec = REC[row.kind], r = row.raw;
+    const org = spec.org(r), person = spec.person(r);
+    const who = org
+      ? e(org) + (person ? `<span class="s-skip"> · ${e(person)}</span>` : "")
+      : '<span class="s-skip">(Blank)</span>';
+    const dir = row.kind === "in"
+      ? '<span class="dir in">Intake</span>' : '<span class="dir is">Issue</span>';
+    // Stage: old records filed before the restructure don't have one; blank shows a dash
+    const stage = spec.stage(r);
+    const stg = stage ? e(stage) : '<span class="s-skip">—</span>';
+    return `<tr class="pick" data-i="${i}"><td class="ckcol"><label>` +
+      `<input type="checkbox" data-id="${recKey(row)}"></label></td><td class="no">${i + 1}</td>` +
+      `<td title="Logged at ${e(r.created_at || "")}">${e(spec.date(r) || "")}</td>` +
+      `<td>${recContent(row)}</td><td>${dir}</td><td>${stg}</td><td>${who}</td>` +
+      // Handling: only meaningful for intakes, empty for issues. A withdrawn intake isn't "done" or not -- the status cell already says it
+      `<td>${row.kind === "in" && r.status !== "withdrawn" ? doneCell(r) : ""}</td>` +
+      `<td>${statusCell(r.status)}</td></tr>`;
+  }).join("");
+  // Clicking a row no longer opens the folder (2026-09-08): the folder is a link on the detail page; the only link on the row is "Content"
+  body.querySelectorAll(".ckcol input").forEach(ck => ck.onchange = () => {
+    ck.closest("tr").classList.toggle("on", ck.checked);
+    syncSel();
+  });
+  syncSel();
+}
+
+const checkedKeys = () =>
+  Array.from($("recBody").querySelectorAll(".ckcol input:checked")).map(ck => ck.dataset.id);
+
+function syncSel() {
+  const total = $("recBody").querySelectorAll(".ckcol input").length;
+  const picked = checkedKeys().length;
+  $("btnRecDel").disabled = !picked;
+  $("btnRecDel").textContent = picked ? `Delete selected (${picked})` : "Delete selected";
+  const head = $("ckAllRec");
+  head.checked = picked > 0 && picked === total;
+  head.indeterminate = picked > 0 && picked < total;
+}
+
+// Delete ≠ withdraw: withdraw means "sent, then taken back", and the ledger keeps it in red; delete means "this row should never have existed".
+// Not a single file is destroyed -- whatever is still in place first moves into the project room's "_withdrawn"; only the ledger rows are erased.
+// Two kinds of rows on one table: grouped by direction, each through its own command; any group that fails is reported as is, never passed off as success.
+async function doDelete() {
+  const keys = new Set(checkedKeys());
+  const rows = (S.rec || []).filter(row => keys.has(recKey(row)));
+  if (!rows.length) return;
+  const groups = ["in", "is"]
+    .map(kind => ({ kind, rows: rows.filter(r => r.kind === kind) }))
+    .filter(g => g.rows.length);
+  const shown = rows.slice(0, 8)
+    .map(row => `· [${REC[row.kind].noun}] ` + REC[row.kind].label(row.raw)).join("\n");
+  const what = groups.map(g => `${g.rows.length} ${REC[g.kind].noun} record(s)`).join(" and ");
+  if (!confirm(`Delete ${what} from the ledger?\n\n` +
+    shown + (rows.length > 8 ? `\n… ${rows.length} in total` : "") + "\n\n" +
+    "No files are destroyed: anything still in place first moves into the project room's \"_withdrawn\" and can be recovered any time.\n" +
+    "But these ledger rows disappear completely, with no red trace -- this step can't be undone.")) return;
+  busy(true, "Deleting…");
+  let done = [], failed = [], broke = "";
+  for (const g of groups) {
+    const spec = REC[g.kind];
+    const targets = g.rows.flatMap(row => spec.expand(row.raw));
+    const r = await api(spec.command, { [spec.field]: targets });
+    if (!r.ok) { broke += `\n${spec.noun}: ${r.error}`; continue; }
+    done = done.concat(r.data.deleted || []);
+    failed = failed.concat(r.data.failed || []);
+    log(`🗑 Deleted ${g.rows.length} ${spec.noun} record(s) from the ledger (${(r.data.deleted || []).length} files)`);
+  }
+  busy(false);
+  if (broke) alert("Nothing in this group was deleted; the ledger is unchanged:" + broke);
+  const unlinked = done.reduce((n, d) => n + (d.unlinked_intakes || 0), 0);
+  if (unlinked) log(`  ${unlinked} intake(s) were marked as "replying to this issue"; that link has been removed, the intakes themselves are untouched.`);
+  if (failed.length) alert("These weren't deleted; the ledger is unchanged:\n" +
+    failed.map(f => "· " + f.error).join("\n"));
+  await boot();
+  await loadRec();
+}
+
+$("ckAllRec").onchange = () => {
+  $("recBody").querySelectorAll(".ckcol input").forEach(ck => {
+    ck.checked = $("ckAllRec").checked;
+    ck.closest("tr").classList.toggle("on", ck.checked);
+  });
+  syncSel();
+};
+$("btnRecDel").onclick = () => doDelete();
+
+const e = (s) => esc(s == null ? "" : s);
+// The subject/notes cell is a link: it opens this record's detail page in a new tab (the ledger stays where it is)
+const intakePageLink = (r, text) =>
+  `<a class="rec" href="${pageUrl("intake", r.intake_id)}" target="_blank" title="Open this intake's detail page">${text}</a>`;
+const issuePageLink = (r, text) =>
+  `<a class="rec" href="${pageUrl("issue", r.issue_id)}" target="_blank" title="Open this issue batch's detail page">${text}</a>`;
+
+// Keyword: searches the whole row's text (subject, source, project name, file names, notes), case-insensitive
+function kwFilter(rows, kw) {
+  kw = (kw || "").trim().toLowerCase();
+  if (!kw) return rows;
+  return rows.filter(r => JSON.stringify(r).toLowerCase().includes(kw));
+}
+
+// Fetch both sides once and merge them into one list, newest first.
+// Time is the business date (the day received / the day sent), not when it was logged -- the ledger records events,
+// and back-filled old records have to land on the day things happened. Same-day entries are ordered by when they were logged;
+// hovering the date shows when it was logged.
+// The stage filter dropdown is rebuilt from "the stages that actually occur in the rows just fetched" (2026-09-21) --
+// not the same as the stage dropdown when logging: that one is a list of candidates for logging (filtered by projects.stages),
+// this is the ledger's filter and only lists stages that really exist in the ledger, so a choice never yields an empty table.
+// Old records filed before the restructure have that cell empty, so there is a separate "(No stage)" option.
+const REC_BLANK_STAGE = "__no-stage__";   // placeholder for an empty stage: the value can't really be an empty string, that means "All stages"
+function recStageOptions(rows) {
+  const sel = $("recStage"), had = sel.value;
+  const stages = [...new Set(rows.map(row => REC[row.kind].stage(row.raw)).filter(Boolean))];
+  // Sorted by the library's stage order (CTX.stages, from the server); old stages not on the list go last
+  const order = s => { const i = (CTX.stages || []).indexOf(s); return i < 0 ? 99 : i; };
+  stages.sort((a, b) => order(a) - order(b) || a.localeCompare(b, "zh"));
+  const blanks = rows.some(row => !REC[row.kind].stage(row.raw));
+  sel.innerHTML = '<option value="">(All stages)</option>' +
+    stages.map(s => `<option value="${e(s)}">${e(s)}</option>`).join("") +
+    (blanks ? `<option value="${REC_BLANK_STAGE}">(No stage)</option>` : "");
+  // After switching projects the previously chosen stage may no longer be listed: fall back to "All", don't quietly filter to an empty table
+  sel.value = [...sel.options].some(o => o.value === had) ? had : "";
+  return sel.value;
+}
+
+async function loadRec() {
+  const pid = $("recProject").value, dir = $("recDir").value;
+  const [gotIn, gotIs] = await Promise.all([
+    dir === "is" ? { ok: true, data: { intakes: [] } }
+                 : api("intakes", { project_id: pid, include_withdrawn: true, limit: 200 }),
+    dir === "in" ? { ok: true, data: { issues: [] } }
+                 : api("issues", { project_id: pid, limit: 200 }),
+  ]);
+  if (!gotIn.ok) log("× Couldn't read intakes: " + gotIn.error);
+  if (!gotIs.ok) log("× Couldn't read issues: " + gotIs.error);
+  const kw = $("recKw").value;
+  const rows = [
+    ...kwFilter(gotIn.ok ? gotIn.data.intakes : [], kw).map(r => ({ kind: "in", raw: r })),
+    ...kwFilter(gotIs.ok ? gotIs.data.issues : [], kw).map(r => ({ kind: "is", raw: r })),
+  ];
+  const when = row => [String(REC[row.kind].date(row.raw) || ""), String(row.raw.created_at || "")];
+  rows.sort((a, b) => {
+    const x = when(a), y = when(b);
+    return y[0].localeCompare(x[0]) || y[1].localeCompare(x[1]);
+  });
+  // Rebuild the stage dropdown from these rows, then filter by it -- the other way round gives "selectable, but filters to empty"
+  const stage = recStageOptions(rows);
+  const shown = !stage ? rows : rows.filter(row => {
+    const s = REC[row.kind].stage(row.raw);
+    return stage === REC_BLANK_STAGE ? !s : s === stage;
+  });
+  $("recHint").textContent = (pid || "All projects") +
+    (stage ? " · " + (stage === REC_BLANK_STAGE ? "No stage" : stage) : "") +
+    (dir ? " · " + (dir === "in" ? "Intake only" : "Issue only") : "") +
+    (shown.length < rows.length ? `  ${shown.length}/${rows.length}` : "");
+  recRows(shown);
+}
+$("recProject").onchange = loadRec;
+$("recStage").onchange = loadRec;
+$("recDir").onchange = loadRec;
+$("recKw").oninput = loadRec;
+$("btnRecReload").onclick = () => { loadRec(); log("Ledger refreshed."); };
+
+// ---------------------------------------------------------------- Detail pages
+// The full picture of one intake / one issue batch. Folders are links (open-path), and linked records are links too --
+// both ends of the cause-and-effect chain are clickable. The address is #intake/<id> or #issue/<id>; a new tab shows the same page.
+const dirLink = (path) => path
+  ? `<a href="#" class="open" data-path="${e(path)}" title="Open in Explorer">${e(path)}</a>`
+  : '<span class="s-skip">—</span>';
+function bindOpens(root) {
+  root.querySelectorAll("a[data-path]").forEach(a => a.onclick = (ev) => {
+    ev.preventDefault();
+    api("open-path", { path: a.dataset.path });
+  });
+}
+const orgText = (x) => e(x.source_org || "(No source)") + (x.source_person ? " · " + e(x.source_person) : "");
+// File role (2026-09-22): "kept" must be visible; "sent" is the default and takes no space
+const roleCell = (role) => role === "kept" ? '<span class="s-new">kept</span>' : '<span class="hint">sent</span>';
+// "N files" / "N sent, M kept": counted separately only when the batch has kept files
+const roleSummary = (roles) => {
+  const kept = (roles || []).filter(r => r === "kept").length;
+  return kept ? `${(roles || []).length - kept} sent, ${kept} kept` : `${(roles || []).length} files`;
+};
+// File name list, with a mark after kept files; roles share indexes with files (from _group_batches)
+const fileNames = (files, roles) => (files || []).map((f, i) =>
+  e(f) + ((roles || [])[i] === "kept" ? '<span class="s-new"> (kept)</span>' : ""));
+// One issue batch per line: date recipient · subject: files  notes  status
+const batchLine = (b) =>
+  `<a href="${pageUrl("issue", b.issue_id)}">${b.issue_date}${b.stage ? " " + e(b.stage) : ""} to ${e(b.recipients || "(not recorded)")}</a>` +
+  `${b.subject ? " · " + e(b.subject) : ""}: ` +
+  `${fileNames(b.files, b.roles).join(", ")}` +
+  `${b.notes ? ` <span class="hint">${e(b.notes)}</span>` : ""}  ${statusCell(b.status)}`;
+// One intake per line: date source · subject  N files
+const intakeLine = (n) => n.missing
+  ? `<span class="s-new">(intake deleted: ${e(n.intake_id)})</span>`
+  : `<a href="${pageUrl("intake", n.intake_id)}" class="${n.status === "withdrawn" ? "s-bad" : ""}">` +
+    `${n.received_date} ${orgText(n)}</a>${n.subject ? " · " + e(n.subject) : ""}` +
+    `  <span class="hint">${n.file_count} files</span>${n.status === "withdrawn" ? "  " + statusCell(n.status) : ""}`;
+const projectCell = (x) => x.project_id
+  ? `${e(x.project_name)} <span class="hint">${e(x.project_id)}${x.folder && x.folder !== x.project_id ? " · room: " + e(x.folder) : ""}</span>`
+  : '<span class="s-new">General (no project)</span>';
+
+// Detail page = an OA workflow page: top bar "Ledger · intake - subject - status" + three tabs (form / history / related)
+// + buttons at top right. "Form" is the logging form with values in the cells; "History" is a list of entries like sign-off comments.
+const AV = {
+  in: '<span class="av">In</span>', out: '<span class="av out">Out</span>',
+  bad: '<span class="av bad">↶</span>', me: '<span class="av me">Me</span>',
+};
+const opItem = (av, who, when, what) =>
+  `<li>${av}<div style="min-width:0"><span class="who">${who}</span><span class="when">${when}</span><div class="what">${what}</div></div></li>`;
+const stamp = (s) => e(s).replace("T", " ").slice(0, 16);
+function flowHead(kind, title, status, acts) {
+  return `<div class="flow-head">
+    <span class="ttl">Ledger · ${kind} - <b>${title}</b> - ${statusCell(status)}</span>
+    <nav class="tabs"><a class="on" data-tab="form">Form</a><a data-tab="ops">History</a><a data-tab="res">Related</a></nav>
+    <div class="acts">${acts}</div></div>`;
+}
+function bindTabs(box) {
+  const tabs = box.querySelectorAll(".tabs a"), panes = box.querySelectorAll(".tabpane");
+  tabs.forEach(a => a.onclick = () => {
+    tabs.forEach(x => x.classList.toggle("on", x === a));
+    panes.forEach(pn => pn.hidden = pn.dataset.pane !== a.dataset.tab);
+  });
+}
+const dash = '<span class="s-skip">—</span>';
+// The detail page's "Stage" cell, with the archive flag after it
+const stageRow = (x) =>
+  `<span class="k">Stage</span><div class="v">${e(x.stage) || dash}${x.archived ? "  <span class=\"s-rep\">☑ Archive</span>" : ""}</div>`;
+
+async function loadIntakeDetail(id) {
+  const box = $("detIn");
+  box.innerHTML = '<div class="hint">Loading…</div>';
+  const r = await api("intake-detail", { intake_id: id });
+  if (!r.ok) { box.innerHTML = `<div class="card bad">${e(r.error)}</div>`; return; }
+  const { intake: x, files, replies_to: reply, issues } = r.data;
+  document.title = `Intake · ${x.subject || x.received_date} · ${APP_TITLE}`;
+  const ops = [];
+  if (reply) ops.push(opItem(AV.out, `Me → ${e(reply.recipients || "(not recorded)")}`, reply.issue_date,
+    `The issue this intake replies to: ${batchLine(reply)}`));
+  ops.push(opItem(AV.in, orgText(x), x.received_date,
+    `Filed${x.source_channel ? ` (${e(x.source_channel)})` : ""}: ${e(x.subject) || "(No subject)"}  ${files.length} files` +
+    `<span class="hint">  logged at ${stamp(x.created_at)}</span>${x.notes ? `<br>Notes: ${e(x.notes)}` : ""}`));
+  issues.forEach(b => ops.push(opItem(b.status === "withdrawn" ? AV.bad : AV.out, `Me → ${e(b.recipients || "(not recorded)")}`, b.issue_date,
+    `Replied with an issue: ${batchLine(b)}`)));
+  if (x.status === "withdrawn") ops.push(opItem(AV.bad, "Me", "", "This intake was withdrawn; its files are in the project room's \"_withdrawn\""));
+  box.innerHTML = flowHead("intake", e(x.subject) || "(No subject)", x.status,
+      `<button class="sm" data-do="dir">Open folder</button><button class="sm" data-do="brief">Copy brief</button><button class="sm" data-do="back">Back to ledger</button>`) + `
+    <div class="tabpane" data-pane="form">
+      <div class="ftitle">Log intake</div>
+      <div class="frm view">
+        <div class="sec">Basic info</div>
+        <span class="k">Project</span><div class="v">${projectCell(x)}</div>
+        ${stageRow(x)}
+        <span class="k">Goes to</span><div class="v span">${dirLink(x.archive_dir)}</div>
+        <span class="k">Source</span><div class="v">${orgText(x)}</div>
+        <span class="k">Received</span><div class="v">${x.received_date}${x.source_channel ? `  <span class="hint">channel ${e(x.source_channel)}</span>` : ""}</div>
+        <span class="k">Subject</span><div class="v">${e(x.subject) || dash}</div>
+        <span class="k">Handling</span><div class="v">${doneCell({ issue_count: issues.filter(b => b.status !== "withdrawn").length, todo: x.todo })}  ${statusCell(x.status)}</div>
+        <span class="k">In reply to</span><div class="v span">${reply ? batchLine(reply) : '<span class="s-skip">— (not a reply to any issue)</span>'}</div>
+        ${x.notes ? `<span class="k">Notes</span><div class="v span">${e(x.notes)}</div>` : ""}
+        <span class="k">Logged at</span><div class="v span hint">${e(x.created_at)}${x.handled_at ? `  closed ${e(x.handled_at)}` : ""}  ID ${e(x.intake_id)}</div>
+      </div>
+      <div class="dt">Files received<span class="hint">${files.length}</span></div>
+      <div class="tw" style="max-height:none">
+        <table><thead><tr><th class="no">#</th><th>File name</th><th style="width:90px">Size</th><th>Source</th></tr></thead><tbody>
+        ${files.length ? files.map((f, i) => `<tr><td class="no">${i + 1}</td><td>${e(f.name)}</td><td class="num">${sizeText(f.size || 0)}</td>
+          <td class="path" title="${e(f.source_path)}">${e(f.source_path)}</td></tr>`).join("")
+          : '<tr><td colspan="4" class="empty">No file details in the ledger (an old record, or files added by hand)</td></tr>'}
+        </tbody></table>
+      </div>
+    </div>
+    <div class="tabpane" data-pane="ops" hidden>
+      <div class="dt">History<span class="hint">Where this intake came from and where it went</span></div>
+      <ul class="ops">${ops.join("")}</ul>
+    </div>
+    <div class="tabpane" data-pane="res" hidden>
+      <div class="frm view" style="margin-top:14px">
+        <div class="sec">Folders</div>
+        <span class="k">Intake folder</span><div class="v span">${dirLink(x.archive_dir)}</div>
+        <div class="sec">Linked records</div>
+        <span class="k">In reply to</span><div class="v span">${reply ? batchLine(reply) : '<span class="s-skip">—</span>'}</div>
+        <span class="k top">Issued later</span><div class="v span">${issues.length ? issues.map(batchLine).join("<br>") : '<span class="s-skip">No issue hangs under this intake yet</span>'}</div>
+      </div>
+    </div>`;
+  box.querySelector("[data-do=back]").onclick = () => go("rec");
+  box.querySelector("[data-do=dir]").onclick = () => api("open-path", { path: x.archive_dir });
+  box.querySelector("[data-do=brief]").onclick = () => copyBrief(x);
+  bindTabs(box);
+  bindOpens(box);
+}
+
+async function loadIssueDetail(id) {
+  const box = $("detIs");
+  box.innerHTML = '<div class="hint">Loading…</div>';
+  const r = await api("issue-detail", { issue_id: id });
+  if (!r.ok) { box.innerHTML = `<div class="card bad">${e(r.error)}</div>`; return; }
+  const { issue: x, files, intakes, followups, deliveries, selfcheck } = r.data;
+  const title = x.subject || x.notes || files.map(f => f.name).join(", ");
+  document.title = `Issue · ${title} · ${APP_TITLE}`;
+  const sent = [...deliveries].reverse().find(d => d.action !== "withdrawn");
+  const channels = sent && sent.channels && sent.channels.length ? sent.channels.map(e).join(", ") : "";
+  const ops = [];
+  intakes.forEach(n => ops.push(opItem(AV.in, n.missing ? "(intake deleted)" : orgText(n), n.received_date || "",
+    `Replies to intake: ${intakeLine(n)}`)));
+  deliveries.forEach(d => ops.push(opItem(d.action === "withdrawn" ? AV.bad : AV.out,
+    `Me → ${e(d.recipients || x.recipients || "(not recorded)")}`, stamp(d.recorded_at),
+    `${d.action === "withdrawn" ? '<span class="s-bad">withdrawn</span>' : e(d.action)}` +
+    `${d.purpose ? `  purpose ${e(d.purpose)}` : ""}${(d.channels || []).length ? `  channel ${d.channels.map(e).join(", ")}` : ""}` +
+    `${d.notes ? `<br>${e(d.notes)}` : ""}<br><span class="hint">${e(d.file_name)}</span>`)));
+  followups.forEach(n => ops.push(opItem(AV.in, orgText(n), n.received_date, `Intake in reply to this issue: ${intakeLine(n)}`)));
+  box.innerHTML = flowHead("issue", e(title), x.status,
+      `<button class="sm" data-do="dir">Open folder</button><button class="sm" data-do="back">Back to ledger</button>`) + `
+    <div class="tabpane" data-pane="form">
+      <div class="ftitle">Issue files</div>
+      <div class="frm view">
+        <div class="sec">Basic info</div>
+        <span class="k">Project</span><div class="v">${projectCell(x)}</div>
+        ${stageRow(x)}
+        <span class="k">Outbox folder</span><div class="v span">${dirLink(x.output_dir)}</div>
+        <span class="k top">Replies to</span><div class="v span">${intakes.length ? intakes.map(intakeLine).join("<br>") : '<span class="s-skip">— (an old issue from before the restructure, no intake linked)</span>'}</div>
+        <span class="k">Recipient</span><div class="v">${e(x.recipients) || dash}</div>
+        <span class="k">Issue date</span><div class="v">${x.issue_date}${channels ? `  <span class="hint">channel ${channels}</span>` : ""}${sent && sent.purpose ? `  <span class="hint">purpose ${e(sent.purpose)}</span>` : ""}</div>
+        <span class="k">Subject</span><div class="v span">${e(x.subject) || dash}</div>
+        ${x.notes ? `<span class="k">Notes</span><div class="v span">${e(x.notes)}</div>` : ""}
+        <span class="k">Change notes</span><div class="v span">${selfcheck.path
+          ? `<a href="#" class="open" data-path="${e(selfcheck.path)}">${e(selfcheck.path)}</a>${selfcheck.exists ? "" : '  <span class="s-new">(not on disk: withdrawing the whole batch moves it into "_withdrawn" with the files)</span>'}`
+          : '<span class="s-skip">No notes attached to this batch</span>'}</div>
+        <span class="k">Status</span><div class="v">${statusCell(x.status)}</div>
+        <span class="k">Logged at</span><div class="v hint">${e(x.created_at)}</div>
+      </div>
+      <div class="dt">Files in this batch<span class="hint">${roleSummary(files.map(f => f.role))}, each with its own withdrawal status; "kept" = stored with the batch, not sent</span></div>
+      <div class="tw" style="max-height:none">
+        <table><thead><tr><th class="no">#</th><th>File name</th><th style="width:60px">Role</th><th style="width:90px">Size</th><th style="width:100px">Status</th><th style="width:170px">SHA-256</th></tr></thead><tbody>
+        ${files.map((f, i) => `<tr><td class="no">${i + 1}</td><td title="${e(f.path)}">${e(f.name)}</td><td>${roleCell(f.role)}</td><td class="num">${f.size == null ? "—" : sizeText(f.size)}</td>
+          <td>${statusCell(f.status)}</td><td class="hint" title="${e(f.hash)}">${e((f.hash || "").slice(0, 16))}…</td></tr>`).join("")}
+        </tbody></table>
+      </div>
+    </div>
+    <div class="tabpane" data-pane="ops" hidden>
+      <div class="dt">History<span class="hint">What it replied to, every send and withdrawal, and who came back afterwards</span></div>
+      <ul class="ops">${ops.join("")}</ul>
+    </div>
+    <div class="tabpane" data-pane="res" hidden>
+      <div class="frm view" style="margin-top:14px">
+        <div class="sec">Folders</div>
+        <span class="k">Outbox folder</span><div class="v span">${dirLink(x.output_dir)}</div>
+        <span class="k">Change notes</span><div class="v span">${selfcheck.path ? `<a href="#" class="open" data-path="${e(selfcheck.path)}">${e(selfcheck.path)}</a>` : dash}</div>
+        <div class="sec">Linked records</div>
+        <span class="k top">Replies to</span><div class="v span">${intakes.length ? intakes.map(intakeLine).join("<br>") : dash}</div>
+        <span class="k top">Later intakes</span><div class="v span">${followups.length ? followups.map(intakeLine).join("<br>") : '<span class="s-skip">No intake has replied to this issue yet</span>'}</div>
+      </div>
+      ${selfcheck.exists ? `<div class="dt">Change notes text</div><div class="md">${mdToHtml(selfcheck.text)}</div>` : ""}
+    </div>`;
+  box.querySelector("[data-do=back]").onclick = () => go("rec");
+  box.querySelector("[data-do=dir]").onclick = () => api("open-path", { path: x.output_dir });
+  bindTabs(box);
+  bindOpens(box);
+}
+
+// The service runs in the background with no console window to close -- this button is that "close window"
+$("btnQuit").onclick = async () => {
+  if (!confirm(`Quit?\n\nThe local service will stop and this page will stop working.\nNext time, double-click "${APP_TITLE}" on the desktop to start it again; nothing filed will be lost.`)) return;
+  try { await api("shutdown"); } catch { /* the service is already gone, which is exactly what we want */ }
+  document.body.innerHTML =
+    '<div style="padding:60px;text-align:center;color:#6b7280;font:14px/1.8 ' +
+    '\'Microsoft YaHei UI\',sans-serif">Quit. You can close this tab now.<br>' +
+    `To use it again, double-click "${APP_TITLE}" on the desktop.</div>`;
+};
+
+// Enter in an input is this page's main button. No reaching for the mouse after the last field.
+// In an IME, Enter means "confirm candidate" and must never submit: block both isComposing and keyCode 229.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || e.isComposing || e.keyCode === 229) return;
+  const el = e.target;
+  if (!(el instanceof HTMLInputElement) || el.type === "checkbox") return;
+  const view = el.closest("section");
+  const spec = view && view.id === "v-in" ? GATES.in : view && view.id === "v-out" ? GATES.out : null;
+  if (!spec || $(spec.button).disabled) return;
+  e.preventDefault();
+  $(spec.button).click();
+});
+
+// ---------------------------------------------------- Coordinates changed, addresses follow
+// Once the issue page's coordinates (project + stage) are set, the current folder and outbox addresses are computed -- addresses are never asked for.
+async function onCoord() {
+  saveState();
+  await Promise.all([loadIssueSuggestions(), refreshUndo(), refreshPlaces()]);
+  refreshAllReady();
+}
+$("project").onchange = () => { fillStages("stage", $("project").value); onCoord(); };
+$("stage").onchange = () => { if (!expandedStages("stage")) onCoord(); };
+
+async function refreshPlaces() {
+  const pid = projectId(), st = stage();
+  if (!pid) { S.places = null; renderPlaces(); return; }
+  const r = await api("places", { project_id: pid, stage: st });
+  S.places = r.ok ? r.data : null;
+  renderPlaces();
+}
+function renderPlaces() {
+  const p = S.places;
+  const pool = p && p.pool_dir ? p.pool_dir : "";
+  $("poolPath").textContent = pool ? shortPath(pool) : "";
+  $("poolPath").title = pool;
+  $("poolPath").onclick = () => pool && p.pool_exists && api("open-path", { path: pool });
+  $("poolNote").textContent = !projectId()
+    ? "Choose a project and stage and the address is worked out"
+    : !stage() ? "Now choose a stage"
+    : !p ? ""
+    : p.pool_exists
+      ? `  ${p.pool_file_count} files · click to open`
+      : "  Doesn't exist yet -- first work for this stage; put the work in there first";
+}
+
+// ================================================================ ① Log intake
+async function onInProject() {
+  saveState();
+  await loadReplies();
+  // Show the intake address: which project room and which stage the files will go into
+  const pid = $("inProject").value, st = $("inStage").value;
+  if (!pid || !st) {
+    $("inAddr").textContent = "Choose a project and stage and the address is worked out";
+    $("inAddr").title = "";
+    return;
+  }
+  const r = await api("places", { project_id: pid, stage: st });
+  if (r.ok) {
+    $("inAddr").textContent = "Into " + shortPath(r.data.inbox_dir) + "\\";
+    $("inAddr").title = r.data.inbox_dir;
+  } else {
+    $("inAddr").textContent = "";
+  }
+}
+$("inProject").onchange = () => { fillStages("inStage", $("inProject").value); onInProject(); };
+$("inStage").onchange = () => { if (!expandedStages("inStage")) onInProject(); };
+
+// ---- New project (dialog): register in the ledger and create the project room. Without an official ID it gets "TMP-xxx" for now, set later
+function npOpen() {
+  $("npErr").hidden = true;
+  $("npModal").classList.add("on");
+  $("npName").focus();
+}
+function npClose() { $("npModal").classList.remove("on"); }
+function npError(message) {
+  $("npErr").querySelector(".grow").textContent = message;
+  $("npErr").hidden = false;
+}
+$("btnNewProject").onclick = npOpen;
+$("btnNpCancel").onclick = npClose;
+// Clicking the backdrop or pressing Esc both cancel -- cancelling leaves no trace
+$("npModal").onclick = (e) => { if (e.target === $("npModal")) npClose(); };
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if ($("npModal").classList.contains("on")) npClose();
+  if ($("psModal").classList.contains("on")) psClose();
+  if ($("scModal").classList.contains("on")) scClose();
+});
+$("btnNpCreate").onclick = async () => {
+  const name = $("npName").value.trim(), folder = $("npFolder").value.trim();
+  if (!name || !folder) return npError("Both the full name and the short name are required.");
+  busy(true, "Registering the project, creating its room…");
+  const r = await api("project-create", {
+    project_name: name, folder, project_id: $("npId").value.trim(),
+  });
+  busy(false);
+  if (!r.ok) return npError("Couldn't create the project: " + r.error);
+  npClose();
+  $("npName").value = ""; $("npFolder").value = ""; $("npId").value = "";
+  log(`✓ New project registered: ${r.data.project_id}  ${name}, room ${r.data.project_dir}`);
+  await boot();
+  loadProjects();
+};
+
+// Issue candidates are filtered by project + stage, matching how the issue side picks intakes (loadIssueIntakes).
+// Empty = not chosen yet, "none" = explicitly not a reply; neither is a valid replies_to, both are stored as empty.
+const REPLY_HEAD =
+  '<option value="">(Choose)</option><option value="none">(Not a reply to any issue)</option>';
+async function loadReplies() {
+  const sel = $("replies"), keep = sel.value;
+  const pid = $("inProject").value, st = $("inStage").value;
+  if (!pid || !st) { sel.innerHTML = REPLY_HEAD; refreshReady("in"); return; }
+  const r = await api("issues", { project_id: pid, stage: st, limit: 40 });
+  if (!r.ok) return;
+  // One option per issue: the whole batch shares one cause, attached to the batch's first row
+  sel.innerHTML = REPLY_HEAD +
+    r.data.issues.map(i => {
+      const files = i.files && i.files.length ? i.files : [i.file_name];
+      const head = files[0] + (files.length > 1 ? ` and ${files.length - 1} more` : "");
+      return `<option value="${i.issue_id}">${i.issue_date}  ${i.stage ? i.stage + "  " : ""}${head}</option>`;
+    }).join("");
+  // After switching stage the previously chosen one may no longer be listed; don't force it
+  sel.value = [...sel.options].some(o => o.value === keep) ? keep : "";
+  refreshReady("in");
+}
+
+function renderIntake() {
+  const b = $("intakeBody");
+  $("intakeHint").textContent = S.intake.length ? `${S.intake.length} files to file` : "";
+  b.innerHTML = S.intake.length ? S.intake.map((f, i) => `
+    <tr><td class="no">${i + 1}</td><td>${f.name}</td><td class="num">${sizeText(f.size)}</td>
+    <td class="path">${f.relative_name || ""}</td>
+    <td class="path">${f.origin || ""}<button class="sm" style="margin-left:6px" data-del="${i}">Remove</button></td></tr>
+  `).join("") : `<tr><td colspan="5" class="empty">Click "Add files…" or "Add a whole folder…" below</td></tr>`;
+  b.querySelectorAll("[data-del]").forEach(el => el.onclick = () => {
+    S.intake.splice(+el.dataset.del, 1); renderIntake();
+  });
+  refreshReady("in");
+}
+$("btnIntakeAdd").onclick = async () => {
+  for (const f of await pickFiles("Choose the files received")) {
+    if (!S.intake.some(x => x.path === f.path)) S.intake.push({ ...f, relative_name: "", origin: f.path });
+  }
+  renderIntake();
+};
+$("btnIntakeFolder").onclick = async () => {
+  const dir = await pickFolder("Choose a folder to file whole (its inner structure is kept)");
+  if (!dir) return;
+  const listed = await api("list-folder", { path: dir });
+  if (!listed.ok) return;
+  listed.data.items.forEach(it => { if (!S.intake.some(x => x.path === it.path)) S.intake.push({ ...it, origin: it.path }); });
+  if (!$("subject").value.trim()) $("subject").value = leafName(dir);
+  renderIntake();
+  log(`Added ${listed.data.items.length} files, original folder structure kept.`);
+};
+$("btnIntakeClear").onclick = () => { S.intake = []; renderIntake(); };
+$("btnOpenIntake").onclick = () => S.lastIntakeDir
+  ? api("open-path", { path: S.lastIntakeDir })
+  : alert("Nothing has been filed in this session yet.");
+
+$("btnIntake").onclick = async () => {
+  $("inErr").hidden = true;
+  const pid = $("inProject").value;
+  busy(true, "Checking, copying, recording…");
+  const r = await api("intake-archive", {
+    archived: $("archived").checked, project_id: pid,
+    project_name: (CTX.projects || []).find(p => p.project_id === pid)?.project_name || "",
+    source_org: $("sourceOrg").value.trim(),
+    source_channel: $("channel").value,
+    received_date: $("intakeDate").value, subject: $("subject").value.trim(),
+    todo: $("todo").checked,
+    // "none" = explicitly not a reply to any issue; stored as empty, same as not choosing
+    stage: $("inStage").value,
+    replies_to: $("replies").value === "none" ? "" : $("replies").value,
+    items: S.intake.map(f => ({ path: f.path, relative_name: f.relative_name || "" })),
+  });
+  busy(false);
+  if (!r.ok) return showError("in", "Couldn't file this batch; nothing was left half-done:\n" + r.error);
+  const d = r.data;
+  S.lastIntakeDir = d.archive_dir;
+  if (!d.duplicate) {
+    // After one batch, the next one still needs action by default; "In reply to" also resets, so the next batch is thought through again
+    S.intake = []; $("subject").value = ""; $("todo").checked = true; $("replies").value = "";
+    renderIntake();
+  }
+  (d.warnings || []).forEach(w => log("Note: " + w));
+  log(`✓ ${d.duplicate ? "Recorded as \"received again\", not stored twice" : "Filed"}: ${d.file_count} files → ${d.archive_dir}`);
+  saveState();
+  await boot();
+};
+
+// ================================================================ ② Issue files
+async function loadIssueSuggestions() {
+  const r = await api("issue-suggestions", {});
+  if (r.ok) $("recipientList").innerHTML = r.data.recipients.map(s => `<option value="${s}">`).join("");
+  await loadIssueIntakes();
+}
+// An issue must reply to an intake (at least one, tick as many as you like): with no intake it can't go out; this says so plainly
+const issueIntakeIds = () =>
+  [...document.querySelectorAll("#issueIntakes input:checked")].map(x => x.value);
+async function loadIssueIntakes() {
+  const box = $("issueIntakes"), keep = new Set(issueIntakeIds());
+  if (!projectId()) { box.innerHTML = '<span class="hint">(Choose a project first)</span>'; return; }
+  // Intakes are filtered by project + stage: feasibility comments don't belong on a preliminary-design issue
+  if (!stage()) { box.innerHTML = '<span class="hint">(Choose a stage first)</span>'; return; }
+  const r = await api("intakes", { project_id: projectId(), stage: stage(), limit: 60 });
+  // Ones already answered are not listed (issue_count>0 = an issue already hangs on it, same rule as "Done" in the ledger) --
+  // only intakes still owed an answer are here; to link old records use the relink-issue command
+  const rows = (r.ok ? r.data.intakes : []).filter(i => !i.issue_count);
+  box.innerHTML = rows.length
+    ? rows.map(i =>
+        `<label><input type="checkbox" value="${i.intake_id}"${keep.has(i.intake_id) ? " checked" : ""}>` +
+        `${i.received_date}  ${i.source_org}${i.subject ? " · " + i.subject : ""}</label>`).join("")
+    : `<span class="hint">(No intakes awaiting a reply in this stage -- log one in ① Log intake first, or link old records with relink-issue)</span>`;
+  refreshReady("out");
+}
+function renderIssue() {
+  const b = $("issueBody");
+  // One "Kept" tick per row (2026-09-22): ticked = this file is stored with the batch but not sent,
+  // the ledger records role "kept"; unticked by default = "sent". Location unchanged; both kinds sit in the same batch folder.
+  b.innerHTML = S.issue.length ? S.issue.map((f, i) => `
+    <tr><td class="no">${i + 1}</td><td>${e(f.name)}${f.role === "kept" ? ' <span class="hint">(kept, not sent)</span>' : ""}</td>
+    <td><label class="hint"><input type="checkbox" data-keep="${i}" ${f.role === "kept" ? "checked" : ""}> Kept</label></td>
+    <td><button class="sm" data-del="${i}">Remove</button></td></tr>
+  `).join("") : `<tr><td colspan="4" class="empty">Click "Pick from current folder…" below</td></tr>`;
+  b.querySelectorAll("[data-del]").forEach(el => el.onclick = () => { S.issue.splice(+el.dataset.del, 1); renderIssue(); });
+  b.querySelectorAll("[data-keep]").forEach(el => el.onchange = () => {
+    S.issue[+el.dataset.keep].role = el.checked ? "kept" : "sent"; renderIssue();
+  });
+  refreshReady("out");
+}
+function addIssueFiles(list) {
+  list.forEach(g => {
+    if (S.issue.some(x => x.path === g.path)) return;
+    S.issue.push({ path: g.path, name: g.name, role: "sent" });
+  });
+  renderIssue();
+}
+// The files to issue are in the current folder -- the picker opens right there
+$("btnIssueAdd").onclick = async () =>
+  addIssueFiles(await pickFiles("Choose the files to issue (starts in the current folder)",
+    S.places && S.places.pool_exists ? S.places.pool_dir : ""));
+$("btnIssueClear").onclick = () => { S.issue = []; renderIssue(); };
+// Change notes: a .md is required; it goes into the batch folder with this batch and is not part of any version chain
+$("btnSelfcheck").onclick = async () => {
+  const picked = await pickFiles("Choose the change notes (.md)",
+    S.places && S.places.pool_exists ? S.places.pool_dir : "");
+  if (!picked.length) return;
+  if (!/\.md$/i.test(picked[0].name)) { log("× The change notes must be a .md file."); return; }
+  $("selfcheck").value = picked[0].path;
+  refreshReady("out");
+};
+$("btnSelfcheckClear").onclick = () => { $("selfcheck").value = ""; refreshReady("out"); };
+// Write the notes right here: saved as a .md in the library root's _drafts\ (one per project + stage, picked up again next time),
+// at issue time it takes the same path as a picked .md and is always named "change-notes.md" in the batch folder; afterwards the program deletes the draft in _drafts.
+// The skeleton comes from the server (selfcheck-read returns it when there is no draft; defined in common/constants.py);
+// only a one-line fallback is kept here, the two sides must not each write their own.
+const SC_SKELETON = "# Change & self-check notes\n";
+$("btnSelfcheckWrite").onclick = async () => {
+  $("scErr").hidden = true;
+  const picked = $("selfcheck").value.trim();
+  const r = await api("selfcheck-read", {
+    path: picked, project_id: projectId(), stage: stage(),
+  });
+  const text = (r.ok && r.data.text) ? r.data.text : "";
+  $("scText").value = text || SC_SKELETON;
+  $("scWhere").textContent = picked && r.ok && r.data.exists
+    ? "Continuing: " + picked : "Saved to _drafts\\ at the library root (<id>-<stage>-change-notes.md), deleted after issuing";
+  $("scModal").classList.add("on");
+  $("scText").focus();
+  if (!text) $("scText").setSelectionRange($("scText").value.length, $("scText").value.length);
+};
+function scClose() { $("scModal").classList.remove("on"); }
+$("btnScCancel").onclick = scClose;
+$("scModal").onclick = (e) => { if (e.target === $("scModal")) scClose(); };
+$("scErr").querySelector("[data-close]").onclick = () => { $("scErr").hidden = true; };
+$("btnScSave").onclick = async () => {
+  const text = $("scText").value;
+  if (!text.trim()) {
+    $("scErr").querySelector(".grow").textContent = "Nothing written yet.";
+    $("scErr").hidden = false;
+    return;
+  }
+  const r = await api("selfcheck-draft", {
+    text, project_id: projectId(), stage: stage(),
+  });
+  if (!r.ok) {
+    $("scErr").querySelector(".grow").textContent = "Couldn't save: " + r.error;
+    $("scErr").hidden = false;
+    return;
+  }
+  scClose();
+  $("selfcheck").value = r.data.path;
+  refreshReady("out");
+  log("✓ Change notes written: " + r.data.path);
+};
+$("btnOpenIssue").onclick = () => S.lastIssueDir ? api("open-path", { path: S.lastIssueDir }) : alert("Nothing has been issued in this session yet.");
+
+$("btnIssue").onclick = async () => {
+  $("outErr").hidden = true;
+  busy(true, "Checking, copying, recording…");
+  const r = await api("issue-create", {
+    project_id: projectId(), project_name: projectName(), stage: stage(),
+    issue_date: $("issueDate").value, channels: [$("issueChannel").value],
+    archived: $("issueArchived").checked,
+    recipients: $("recipient").value.trim(), subject: $("issueSubject").value.trim(),
+    intake_ids: issueIntakeIds(), selfcheck_path: $("selfcheck").value,
+    items: S.issue.map(f => ({ path: f.path, role: f.role || "sent" })),
+  });
+  busy(false);
+  if (!r.ok) return showError("out", "Couldn't issue this batch; nothing was left half-done:\n" + r.error);
+  const d = r.data;
+  S.lastIssueDir = d.output_dir;
+  saveState();
+  (d.warnings || []).forEach(w => log("Note: " + w));
+  (d.files || []).forEach(f => log(`  ${f.name}${f.role === "kept" ? " (kept, not sent)" : ""}${f.reused ? " (content unchanged, recorded as sent again)" : ""}`));
+  const kept = (d.files || []).filter(f => f.role === "kept").length;
+  log(`✓ Issued: ${(d.files || []).length} files${kept ? ` (${(d.files || []).length - kept} sent, ${kept} kept)` : ""} → ${d.output_dir}`);
+  // The draft is deleted once used (the one in _drafts), so the box shouldn't point at a file that's gone
+  if (d.draft_removed) { log("  Notes draft in _drafts deleted: " + d.draft_removed); $("selfcheck").value = ""; }
+  S.issue = []; $("issueSubject").value = "";
+  $("eyeballed").checked = false;
+  renderIssue();
+  await boot();
+};
+
+boot();
+</script>
+</body>
+</html>
