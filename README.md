@@ -52,6 +52,26 @@ python -m unittest discover
 
 The library layout and its rules are written up in [docs/library-spec.md](./docs/library-spec.md).
 
+## Screenshots
+
+All screenshots use a fictional demo library; no real projects, people or organizations appear.
+
+![Two gates, free middle](docs/images/flow-two-gates.png)
+
+*Files pass through an inbound gate and an outbound gate, while the work in between happens freely in the stage's `current` folder.*
+
+![Inbound records](docs/images/inbound-records.png)
+
+*The ledger filtered to intake shows every incoming batch with its source, stage and whether it still needs a reply.*
+
+![Outbound batches](docs/images/outbound-batches.png)
+
+*The ledger filtered to issues lists each outgoing batch as one entry, with its recipient and the files it contained.*
+
+![Project folder structure](docs/images/project-structure.png)
+
+*Each project room has one folder per stage, and each stage has exactly five positions: `inbox`, `current`, `tools`, `outbox` and `archive`.*
+
 ---
 
 One entry point for two jobs: **intake** (what other people send me) and **issues** (what I
